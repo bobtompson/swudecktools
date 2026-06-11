@@ -1,0 +1,21 @@
+{
+  // Cloudflare Workers deploy config — read by `npx wrangler deploy` (the
+  // deploy command in the dashboard's git-connected build).
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "swudecktools",
+  "compatibility_date": "2026-06-01",
+  // Astro's cloudflare adapter emits the server entry here at build time.
+  // It serves the CORS proxy (/api/proxy/*); everything else is static.
+  "main": "./dist/_worker.js/index.js",
+  "compatibility_flags": ["nodejs_compat"],
+  "assets": {
+    // Static build output (HTML, JS, fonts, card data). Requests matching a
+    // file here are served directly; anything else falls through to the
+    // worker — which is how /api/proxy/* reaches the proxy route.
+    "directory": "./dist",
+    "binding": "ASSETS"
+  },
+  "observability": {
+    "enabled": true
+  }
+}
