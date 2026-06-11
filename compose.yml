@@ -1,0 +1,20 @@
+services:
+  web:
+    build:
+      context: ./website
+    ports:
+      - "4321:4321"
+    develop:
+      watch:
+        # Hot-reload: sync source edits into the running container.
+        - action: sync
+          path: ./website/src
+          target: /app/src
+        - action: sync
+          path: ./website/public
+          target: /app/public
+        # Rebuild the image when dependencies or config change.
+        - action: rebuild
+          path: ./website/package.json
+        - action: rebuild
+          path: ./website/astro.config.mjs

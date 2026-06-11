@@ -1,0 +1,45 @@
+{
+  "generated": "2026-06-10",
+  "sets": {
+    "SOR": {
+      "cards": 510,
+      "base": 252
+    },
+    "SHD": {
+      "cards": 522,
+      "base": 262
+    },
+    "TWI": {
+      "cards": 517,
+      "base": 257
+    },
+    "JTL": {
+      "cards": 1122,
+      "base": 262
+    },
+    "LOF": {
+      "cards": 1152,
+      "base": 264
+    },
+    "IBH": {
+      "cards": 104,
+      "base": 104
+    },
+    "SEC": {
+      "cards": 1150,
+      "base": 264
+    },
+    "LAW": {
+      "cards": 901,
+      "base": 264
+    },
+    "ASH": {
+      "cards": 264,
+      "base": 264
+    },
+    "TS26": {
+      "cards": 84,
+      "base": 84
+    }
+  }
+}
