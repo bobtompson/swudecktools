@@ -15,13 +15,13 @@ Sort + Trilogy validator both functional, with Premier / Eternal / Twin Suns for
 
 ## Upcoming sets (Q4 2026)
 
-- [ ] **IC27 (Icons 2027 Edition)** — added as Premier-pending (IBH-like supplemental).
-      When the release date is announced, add it to `RELEASE_DATE_OVERRIDES` in
-      `lib/legality.ts` (+ `swu-tools/lib/swudb.py`) so legality flips at release − 7 days
-      even if the swu-db catalog lags. Add logo/color to `lib/sets.ts` + `public/sets/`
-      when the media kit ships them.
-- [ ] **Homeworlds** (main set after ASH) — set code not announced yet. When known: add to
-      `SET_ORDER`, `PREMIER_PENDING_SETS`, `lib/sets.ts`, and Python `MAIN_SETS`.
+- [ ] **IC27 (Icons 2027 Edition)** — Premier-pending (IBH-like supplemental), releases
+      **11/20/26** (in `RELEASE_DATE_OVERRIDES`, `lib/legality.ts` + `swu-tools/lib/swudb.py`;
+      flips Premier-legal 11/13/26 even if the swu-db catalog lags). Still to do: add
+      logo/color to `lib/sets.ts` + `public/sets/` when the media kit ships them.
+- [ ] **Homeworlds** (main set after ASH, **Oct 2026** — releases before IC27) — set code
+      not announced yet. When known: add to `SET_ORDER` (between ASH and IC27),
+      `PREMIER_PENDING_SETS`, `lib/sets.ts`, and Python `MAIN_SETS`.
 
 ## Features / correctness
 
@@ -44,7 +44,8 @@ Sort + Trilogy validator both functional, with Premier / Eternal / Twin Suns for
       hidden on touch devices).
 - [ ] Fix the a11y warnings (divs/imgs with mouse handlers need an ARIA `role`) — see dev server
       log lines for `DeckTools.svelte`.
-- [ ] Card preview polish (fade-in; maybe larger).
+- [x] Card preview polish — fade-in + holographic velocity tilt with glare (2026-06-11).
+      ("Larger" still open if 320px feels small.)
 - [ ] Optional: per-card aspect icons show every pip; offer a "unique aspects only" view.
 
 ## Testing / infra

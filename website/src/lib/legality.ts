@@ -5,14 +5,18 @@ export const PREMIER_LEGAL_MAIN_SETS = new Set(['JTL', 'LOF', 'IBH', 'SEC', 'LAW
 export const PREMIER_ROTATED_SETS = new Set(['SOR', 'SHD', 'TWI']);
 export const PREMIER_EXCLUDED_SETS = new Set(['TS26']);
 // IC27 = "Icons 2027 Edition", an IBH-like Premier-legal supplemental set
-// (Q4 2026). Flips legal once a release date is known (catalog or override).
+// releasing 11/20/26 (override below; flips legal at release - 7 days).
 export const PREMIER_PENDING_SETS = new Set(['ASH', 'IC27']);
 export const PRERELEASE_DAYS = 7;
 
 // Release-date overrides ("M/D/YY") for sets whose swu-db catalog date is
 // wrong or missing. ASH's full release is 7/17/26 (catalog says 7/27/26), so
-// pre-release makes it Premier-legal from 7/10/26.
-export const RELEASE_DATE_OVERRIDES: Record<string, string> = { ASH: '7/17/26' };
+// pre-release makes it Premier-legal from 7/10/26. IC27 releases 11/20/26
+// (announced; not yet in the catalog) -> Premier-legal 11/13/26.
+export const RELEASE_DATE_OVERRIDES: Record<string, string> = {
+  ASH: '7/17/26',
+  IC27: '11/20/26',
+};
 
 export const PREMIER_SUSPENDED_CARDS = new Set([
   'Boba Fett - Collecting the Bounty',
@@ -28,7 +32,8 @@ export const PREMIER_SUSPENDED_CARDS = new Set([
 export const ETERNAL_BANNED_CARDS = new Set(['ig-2000', 'war juggernaut']);
 
 // Display order for sorting output. Main sets first, then specials, then unknown.
-// "Homeworlds" (main set after ASH, Q4 2026) joins here once its code is known.
+// "Homeworlds" (main set after ASH, Oct 2026) joins between ASH and IC27 once
+// its code is known — it releases before IC27 (11/20/26).
 export const SET_ORDER = ['SOR', 'SHD', 'TWI', 'JTL', 'LOF', 'IBH', 'SEC', 'LAW', 'ASH', 'IC27'];
 export const SPECIAL_SET_ORDER = ['TS26'];
 

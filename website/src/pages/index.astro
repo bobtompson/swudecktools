@@ -13,17 +13,41 @@ import DeckTools from '../components/DeckTools.svelte';
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>SWU Deck Tools</title>
     <meta name="description" content="Sort Star Wars Unlimited decks by set and validate trilogy decklists." />
+    <script is:inline>
+      // Pick a random header key art before first paint (default is jtl without JS).
+      document.documentElement.dataset.hero = Math.random() < 0.5 ? 'jtl' : 'lof';
+      // Restore the alphabet preference before first paint (no FOUC).
+      try {
+        if (localStorage.getItem('swu-font') === 'aurebesh') {
+          document.documentElement.dataset.font = 'aurebesh';
+        }
+      } catch {}
+    </script>
   </head>
   <body>
     <header class="site-head">
       <div class="site-head-inner">
         <h1><span class="gold">SWU</span> Deck Tools</h1>
         <p>Sort a deck by set, or validate a three-deck trilogy.</p>
+        <button id="font-toggle" type="button" title="Switch between Aurebesh and Galactic Basic"
+          aria-label="Switch between Aurebesh and Galactic Basic"></button>
       </div>
     </header>
     <main>
       <DeckTools client:load />
     </main>
+    <footer class="site-foot">
+      <p>
+        SWU Deck Tools is an unofficial fan site. It is not affiliated with, endorsed,
+        sponsored, or approved by Lucasfilm Ltd., The Walt Disney Company, Fantasy Flight
+        Games, or <em>Star Wars</em>: Unlimited.
+      </p>
+      <p>
+        <em>Star Wars</em> characters, artwork, and trademarks are &copy; &amp; &trade;
+        Lucasfilm Ltd. <em>Star Wars</em>: Unlimited and its logos are trademarks of
+        Fantasy Flight Games.
+      </p>
+    </footer>
 
     <style is:global>
       :root {
@@ -56,8 +80,32 @@ import DeckTools from '../components/DeckTools.svelte';
         --fmt-eternal: #7048e8;
         --fmt-twinsuns: #2f9e44;
         /* type */
-        --font-body: 'Barlow', system-ui, -apple-system, sans-serif;
-        --font-display: 'Barlow Condensed', var(--font-body);
+        --font-basic: 'Barlow', system-ui, -apple-system, sans-serif;
+        --font-body: var(--font-basic);
+        --font-display: 'Barlow Condensed', var(--font-basic);
+      }
+
+      /* AurebeshAF Canon (AurekFonts, free personal+commercial — note in
+         /fonts/) — the angular on-screen Aurebesh from the films. Swaps in via
+         the header toggle; the font maps Latin letters to Aurebesh glyphs. */
+      @font-face {
+        font-family: 'Aurebesh';
+        src: url('/fonts/aurebesh-af-canon.woff2') format('woff2');
+        font-display: swap;
+        /* Aurebesh has no lowercase: every glyph is cap-height (700/1000 vs
+           Barlow's 506 x-height), so unscaled body text reads ~38% bigger.
+           82% splits the difference between body and all-caps headers. */
+        size-adjust: 82%;
+      }
+      :root[data-font='aurebesh'] {
+        --font-body: 'Aurebesh', var(--font-basic);
+        --font-display: 'Aurebesh', var(--font-basic);
+      }
+      /* Things that must stay legible in Basic: deck URLs you need to
+         proofread, and the legal disclaimer. */
+      :root[data-font='aurebesh'] input,
+      :root[data-font='aurebesh'] .site-foot {
+        font-family: var(--font-basic);
       }
 
       body {
@@ -68,15 +116,20 @@ import DeckTools from '../components/DeckTools.svelte';
           var(--bg-space-1);
         color: var(--text);
         min-height: 100vh;
+        /* Flex column so the footer anchors to the viewport bottom on short pages. */
+        display: flex;
+        flex-direction: column;
       }
 
-      /* Starfield: two fixed star layers behind everything. Dense faint layer… */
+      /* Starfield: two fixed star layers behind everything, oversized so they
+         can drift slowly without exposing edges. Dense faint layer… */
       body::before {
         content: '';
         position: fixed;
-        inset: 0;
+        inset: -120px;
         z-index: -1;
         pointer-events: none;
+        animation: star-drift-a 240s linear infinite alternate;
         background-image:
           radial-gradient(1px 1px at 25px 35px, rgba(255, 255, 255, 0.5), transparent),
           radial-gradient(1px 1px at 117px 203px, rgba(255, 255, 255, 0.4), transparent),
@@ -97,14 +150,19 @@ import DeckTools from '../components/DeckTools.svelte';
           380px 380px, 380px 380px, 380px 380px, 380px 380px, 380px 380px;
       }
 
-      /* …and a sparse bright layer with soft halos. */
+      /* …and a sparse bright layer with soft halos, drifting the other way
+         (slight parallax) and gently twinkling. The dense layer stays at
+         constant brightness so the field never visibly "blinks" as a whole. */
       body::after {
         content: '';
         position: fixed;
-        inset: 0;
+        inset: -120px;
         z-index: -1;
         pointer-events: none;
         opacity: 0.7;
+        animation:
+          star-drift-b 180s linear infinite alternate,
+          star-twinkle 7s ease-in-out infinite;
         background-image:
           radial-gradient(2px 2px at 79px 113px, rgba(255, 255, 255, 0.9), rgba(255, 255, 255, 0.15) 60%, transparent),
           radial-gradient(1.5px 1.5px at 347px 419px, rgba(255, 255, 255, 0.85), rgba(255, 255, 255, 0.12) 60%, transparent),
@@ -113,11 +171,48 @@ import DeckTools from '../components/DeckTools.svelte';
         background-size: 560px 560px;
       }
 
+      @keyframes star-drift-a {
+        to { transform: translate3d(90px, 50px, 0); }
+      }
+      @keyframes star-drift-b {
+        to { transform: translate3d(-70px, -40px, 0); }
+      }
+      @keyframes star-twinkle {
+        0%, 100% { opacity: 0.55; }
+        50% { opacity: 0.9; }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        body::before,
+        body::after {
+          animation: none;
+          inset: 0;
+        }
+      }
+
+      /* Official key art behind the title, darkened left-to-right so the text
+         sits on near-solid space while the art shows through on the right.
+         The variant (and its crop) is chosen at random by the head script via
+         data-hero on <html>; --hero-y frames the faces in the thin band. */
       .site-head {
+        --hero: url('/art/header-jtl.jpg');
+        --hero-y: 30%;
         position: relative;
-        padding: 1.5rem 0;
+        padding: 2.75rem 0;
         border-bottom: 1px solid var(--line);
-        background: rgba(8, 11, 20, 0.6);
+        background:
+          linear-gradient(
+            90deg,
+            rgba(5, 7, 13, 0.94) 0%,
+            rgba(5, 7, 13, 0.82) 30%,
+            rgba(8, 11, 20, 0.45) 60%,
+            rgba(5, 7, 13, 0.6) 100%
+          ),
+          var(--hero) center var(--hero-y) / cover no-repeat,
+          rgba(8, 11, 20, 0.6);
+      }
+      :root[data-hero='lof'] .site-head {
+        --hero: url('/art/header-lof.jpg');
+        --hero-y: 25%;
       }
       /* Angled gold rule under the header, echoing starwarsunlimited.com. */
       .site-head::after {
@@ -131,10 +226,37 @@ import DeckTools from '../components/DeckTools.svelte';
         clip-path: polygon(0 0, 100% 0, calc(100% - 14px) 100%, 0 100%);
       }
       .site-head-inner {
+        position: relative;
         max-width: 1100px;
         margin-inline: auto;
         padding-inline: 1.5rem;
         box-sizing: border-box;
+      }
+      /* Alphabet toggle: always labeled in the alphabet it switches TO —
+         a teaser in Basic mode, a readable escape hatch in Aurebesh mode. */
+      #font-toggle {
+        position: absolute;
+        right: 1.5rem;
+        top: 50%;
+        translate: 0 -50%;
+        padding: 0.4rem 0.8rem;
+        background: rgba(8, 11, 20, 0.55);
+        border: 1px solid var(--line-bright);
+        border-radius: 999px;
+        color: var(--text-dim);
+        cursor: pointer;
+        font-family: 'Aurebesh', var(--font-basic);
+        font-size: 0.8rem;
+        letter-spacing: 0.05em;
+      }
+      #font-toggle:hover {
+        border-color: var(--gold-deep);
+        color: var(--gold);
+      }
+      :root[data-font='aurebesh'] #font-toggle {
+        font-family: var(--font-basic);
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
       }
       .site-head h1 {
         margin: 0;
@@ -153,15 +275,52 @@ import DeckTools from '../components/DeckTools.svelte';
       }
 
       main {
+        /* width:100% because body is a flex column: auto inline margins would
+           otherwise shrink-wrap the content instead of filling to max-width. */
+        width: 100%;
         padding: 1.5rem;
         max-width: 1100px;
         margin-inline: auto;
         box-sizing: border-box;
       }
 
+      .site-foot {
+        width: 100%;
+        max-width: 1100px;
+        margin: auto auto 0;
+        padding: 1.25rem 1.5rem 2rem;
+        box-sizing: border-box;
+        border-top: 1px solid var(--line);
+        color: var(--text-faint);
+        font-size: 0.8rem;
+        line-height: 1.5;
+        text-align: center;
+      }
+      .site-foot p {
+        margin: 0 0 0.5rem;
+      }
+
       @media (max-width: 900px) {
+        #font-toggle {
+          right: 1rem;
+          padding: 0.3rem 0.6rem;
+          font-size: 0.72rem;
+        }
         .site-head {
-          padding: 1rem 0;
+          --hero-y: 18%;
+          padding: 1.25rem 0;
+          background:
+            linear-gradient(
+              90deg,
+              rgba(5, 7, 13, 0.92) 0%,
+              rgba(5, 7, 13, 0.78) 45%,
+              rgba(8, 11, 20, 0.55) 100%
+            ),
+            var(--hero) center var(--hero-y) / cover no-repeat,
+            rgba(8, 11, 20, 0.6);
+        }
+        :root[data-hero='lof'] .site-head {
+          --hero-y: 12%;
         }
         .site-head-inner {
           padding-inline: 1rem;
@@ -171,5 +330,24 @@ import DeckTools from '../components/DeckTools.svelte';
         }
       }
     </style>
+    <script is:inline>
+      (() => {
+        const btn = document.getElementById('font-toggle');
+        const html = document.documentElement;
+        const setLabel = () => {
+          btn.textContent = html.dataset.font === 'aurebesh' ? 'Basic' : 'Aurebesh';
+        };
+        btn.addEventListener('click', () => {
+          const on = html.dataset.font === 'aurebesh';
+          if (on) delete html.dataset.font;
+          else html.dataset.font = 'aurebesh';
+          try {
+            localStorage.setItem('swu-font', on ? 'basic' : 'aurebesh');
+          } catch {}
+          setLabel();
+        });
+        setLabel();
+      })();
+    </script>
   </body>
 </html>

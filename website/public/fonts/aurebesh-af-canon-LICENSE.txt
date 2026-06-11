@@ -1,0 +1,4 @@
+AurebeshAF-Canon by AurekFonts (https://aurekfonts.github.io/?font=AurebeshAF)
+License: "Free for all personal and commercial uses." (per the font's AurekFonts page)
+Source: https://github.com/AurekFonts/AurekFonts.github.io/tree/master/AurebeshAF
+Converted from AurebeshAF-Canon.otf to woff2, no glyph modifications.

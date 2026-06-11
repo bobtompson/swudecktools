@@ -1,4 +1,7 @@
 <script lang="ts">
+  import { fly, fade } from 'svelte/transition';
+  import { Spring } from 'svelte/motion';
+  import HyperspaceOverlay from './HyperspaceOverlay.svelte';
   import { parseDeckUrl, normalizeDeck } from '../lib/normalize';
   import { fetchDeck, fetchSets, DeckFetchError } from '../lib/swudb';
   import { sortDeck, toMarkdown, type SortedDeck } from '../lib/sort';
@@ -56,6 +59,41 @@
   type Mode = 'sort' | 'validate';
   let mode = $state<Mode>('sort');
 
+  // Motion: all animation respects prefers-reduced-motion (durations drop to 0
+  // and the hyperspace jump is skipped entirely).
+  const motionOK =
+    typeof matchMedia === 'undefined' || !matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const DUR = motionOK ? 320 : 0;
+
+  // Staggered reveal: sections cascade, rows ripple within their section
+  // (capped so long sections don't drag the tail out).
+  function staggerDelay(section: number, row = 0): number {
+    return motionOK ? 60 + section * 80 + Math.min(row * 14, 180) : 0;
+  }
+
+  // Focus mode: hide the form panel so results get the full width (useful when
+  // referencing cards). The toggle appears once the right pane has content —
+  // and stays while expanded, so you can always get the form back.
+  let expanded = $state(false);
+  const hasResults = $derived(mode === 'sort' ? !!sorted : !!trilogy);
+
+  // Hyperspace jump overlay: shown while a fetch is in flight, held for a
+  // minimum beat so quick responses don't strobe the effect.
+  let jumping = $state(false);
+  const MIN_JUMP_MS = 1100;
+
+  async function holdJump<T>(work: () => Promise<T>): Promise<T> {
+    jumping = true;
+    const t0 = performance.now();
+    try {
+      return await work();
+    } finally {
+      const left = motionOK ? MIN_JUMP_MS - (performance.now() - t0) : 0;
+      if (left > 0) await new Promise((r) => setTimeout(r, left));
+      jumping = false;
+    }
+  }
+
   // Sort form
   let sortUrl = $state('');
   let sortBusy = $state(false);
@@ -71,13 +109,23 @@
   let perDeck = $state<{ deck: NormalizedDeck; result: DeckValidation }[]>([]);
   let trilogy = $state<TrilogyValidation | null>(null);
 
-  // Card hover preview — follows the cursor.
+  // Card hover preview — follows the cursor, with a holographic tilt + glare
+  // driven by smoothed cursor velocity (the card leans the way it's "dragged").
   let preview = $state<string | null>(null);
   let previewX = $state(0);
   let previewY = $state(0);
 
   const PREVIEW_W = 320;
   const PREVIEW_H = 448; // SWU cards are ~1.4:1 portrait
+  const TILT_MAX = 12; // degrees
+
+  const tilt = new Spring({ x: 0, y: 0 }, { stiffness: 0.06, damping: 0.4 });
+  let tiltTimer: ReturnType<typeof setTimeout> | undefined;
+  let lastMX = 0;
+  let lastMY = 0;
+  let lastMT = 0;
+
+  const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(v, hi));
 
   function movePreview(e: MouseEvent) {
     const margin = 16;
@@ -90,6 +138,26 @@
     y = Math.max(margin, Math.min(y, window.innerHeight - PREVIEW_H - margin));
     previewX = x;
     previewY = y;
+
+    if (!motionOK) return;
+    const now = performance.now();
+    const dt = now - lastMT;
+    // Stale timestamp = fresh hover; just seed the tracking, no velocity spike.
+    if (dt < 200) {
+      const vx = (e.clientX - lastMX) / Math.max(dt, 8);
+      const vy = (e.clientY - lastMY) / Math.max(dt, 8);
+      tilt.target = {
+        x: clamp(-vy * 28, -TILT_MAX, TILT_MAX),
+        y: clamp(vx * 28, -TILT_MAX, TILT_MAX),
+      };
+      clearTimeout(tiltTimer);
+      tiltTimer = setTimeout(() => {
+        tilt.target = { x: 0, y: 0 };
+      }, 90);
+    }
+    lastMX = e.clientX;
+    lastMY = e.clientY;
+    lastMT = now;
   }
 
   async function loadDeck(input: string): Promise<NormalizedDeck> {
@@ -106,10 +174,14 @@
     sortValidation = null;
     sortBusy = true;
     try {
-      const deck = await loadDeck(sortUrl);
+      // Assign results only after the jump resolves, so the cascade reveal
+      // plays as the overlay fades rather than hidden behind it.
+      const { deck, catalog } = await holdJump(async () => ({
+        deck: await loadDeck(sortUrl),
+        catalog: await fetchSets(),
+      }));
       sortNorm = deck;
       sorted = sortDeck(deck);
-      const catalog = await fetchSets();
       sortValidation = validateDeck(deck, catalog);
     } catch (err) {
       sortError = err instanceof Error ? err.message : String(err);
@@ -130,8 +202,10 @@
     }
     valBusy = true;
     try {
-      const catalog = await fetchSets();
-      const decks = await Promise.all(inputs.map(loadDeck));
+      const { decks, catalog } = await holdJump(async () => {
+        const cat = await fetchSets();
+        return { decks: await Promise.all(inputs.map(loadDeck)), catalog: cat };
+      });
       // validateTrilogy judges every deck by the trilogy's format and returns them.
       trilogy = validateTrilogy(decks as [NormalizedDeck, NormalizedDeck, NormalizedDeck], catalog);
       perDeck = trilogy.perDeck;
@@ -193,7 +267,7 @@
   }
 </script>
 
-<div class="layout">
+<div class="layout" class:expanded>
   <!-- LEFT: form panel -->
   <section class="panel left">
     <div class="tabs">
@@ -256,9 +330,32 @@
 
   <!-- RIGHT: output panel -->
   <section class="panel right">
+    {#if hasResults || expanded}
+      <button
+        class="expand-btn"
+        onclick={() => (expanded = !expanded)}
+        aria-pressed={expanded}
+        title={expanded ? 'Show the form panel' : 'Expand results to full width'}
+        aria-label={expanded ? 'Show the form panel' : 'Expand results to full width'}
+      >
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          {#if expanded}
+            <polyline points="4 14 10 14 10 20" />
+            <polyline points="20 10 14 10 14 4" />
+            <line x1="14" y1="10" x2="21" y2="3" />
+            <line x1="3" y1="21" x2="10" y2="14" />
+          {:else}
+            <polyline points="15 3 21 3 21 9" />
+            <polyline points="9 21 3 21 3 15" />
+            <line x1="21" y1="3" x2="14" y2="10" />
+            <line x1="3" y1="21" x2="10" y2="14" />
+          {/if}
+        </svg>
+      </button>
+    {/if}
     {#if mode === 'sort'}
       {#if sorted}
-        <header class="deck-head">
+        <header class="deck-head" in:fly|global={{ y: 14, duration: DUR }}>
           <h2>{sorted.title}</h2>
           {#if sorted.author}<p class="muted"><span>by {sorted.author}</span></p>{/if}
           <div class="thumbs">
@@ -318,9 +415,13 @@
           {/if}
           <button class="ghost" onclick={copyMarkdown}>Copy as markdown</button>
         </header>
-        {#each sorted.sets as s}
+        {#each sorted.sets as s, i}
           {@const meta = setMeta(s.set)}
-          <h3 class="set-head" style:--set-color={meta.color ?? 'var(--line-bright)'}>
+          <h3
+            class="set-head"
+            style:--set-color={meta.color ?? 'var(--line-bright)'}
+            in:fly|global={{ x: -18, duration: DUR, delay: staggerDelay(i) }}
+          >
             {#if meta.logo}
               <img class="set-logo" src={meta.logo} alt={meta.name} title={meta.name} />
             {:else}
@@ -329,8 +430,9 @@
             <span class="set-count">{s.set} · {s.cardCount}</span>
           </h3>
           <ul class="cards">
-            {#each s.cards as c}
+            {#each s.cards as c, j}
               <li
+                in:fly|global={{ y: 10, duration: DUR, delay: staggerDelay(i, j + 1) }}
                 onmouseenter={(e) => { preview = cardImage(c.card); movePreview(e); }}
                 onmousemove={movePreview}
                 onmouseleave={() => (preview = null)}
@@ -356,7 +458,7 @@
       {@const tv = trilogy}
       {@const trilogyPlay = playName(tv.format)}
       {@const invalidCount = tv.dupViolations.length + tv.copyViolations.length}
-      <header class="deck-head">
+      <header class="deck-head" in:fly|global={{ y: 14, duration: DUR }}>
         <h2>{tv.formatLabel}</h2>
         {#if tv.formatReasons.length}
           <p class="verdict bad">Invalid</p>
@@ -372,7 +474,7 @@
       {#each perDeck as { deck, result }, i}
         {@const dplay = playName(result.format)}
         {@const tcount = deckTrilogyCount(tv, i)}
-        <div class="deck-result deck-{i + 1}">
+        <div class="deck-result deck-{i + 1}" in:fly|global={{ y: 16, duration: DUR, delay: staggerDelay(i) }}>
           <h3>
             <span class="deck-tag deck-{i + 1}">Deck {i + 1}</span>
             {deck.title}
@@ -433,14 +535,15 @@
 
       <!-- Invalid cards listed under the deck summaries -->
       {#if invalidCount > 0}
-        <section class="invalid-section">
+        <section class="invalid-section" in:fly|global={{ y: 16, duration: DUR, delay: staggerDelay(3) }}>
           <h3 class="invalid-head">
             {invalidCount} {invalidCount === 1 ? 'card is' : 'cards are'} invalid across 3 decks
           </h3>
           <div class="violations">
-            {#each trilogy.dupViolations as v}
+            {#each trilogy.dupViolations as v, vi}
               <div
                 class="vcard"
+                in:fly|global={{ y: 10, duration: DUR, delay: staggerDelay(3, vi + 1) }}
                 onmouseenter={(e) => { preview = refImg(v); movePreview(e); }}
                 onmousemove={movePreview}
                 onmouseleave={() => (preview = null)}
@@ -456,9 +559,10 @@
                 </div>
               </div>
             {/each}
-            {#each trilogy.copyViolations as v}
+            {#each trilogy.copyViolations as v, vi}
               <div
                 class="vcard"
+                in:fly|global={{ y: 10, duration: DUR, delay: staggerDelay(3, trilogy.dupViolations.length + vi + 1) }}
                 onmouseenter={(e) => { preview = refImg(v); movePreview(e); }}
                 onmousemove={movePreview}
                 onmouseleave={() => (preview = null)}
@@ -484,13 +588,57 @@
     {/if}
 
     {#if preview}
-      <img class="preview" src={preview} alt="card preview" style={`left:${previewX}px; top:${previewY}px;`} />
+      <div
+        class="preview-wrap"
+        style={`left:${previewX}px; top:${previewY}px;`}
+        transition:fade={{ duration: motionOK ? 130 : 0 }}
+      >
+        <div
+          class="preview-card"
+          style={`transform: rotateX(${tilt.current.x}deg) rotateY(${tilt.current.y}deg); --gx: ${50 + tilt.current.y * 3.5}%; --gy: ${50 - tilt.current.x * 3.5}%;`}
+        >
+          <img src={preview} alt="card preview" />
+          <div class="glare"></div>
+        </div>
+      </div>
     {/if}
   </section>
 </div>
 
+<HyperspaceOverlay active={jumping} />
+
 <style>
-  .layout { display: grid; grid-template-columns: 360px 1fr; gap: 1.5rem; align-items: start; }
+  .layout {
+    display: grid; grid-template-columns: 360px 1fr; gap: 1.5rem; align-items: start;
+    transition: grid-template-columns 0.35s ease, gap 0.35s ease;
+  }
+  /* Focus mode: the left track animates to 0 so the results panel grows
+     smoothly while the form panel slides out. The panel clips its content
+     (overflow hidden + min-width 0) and collapses its padding so no sliver
+     remains; visibility flips only after the slide finishes. */
+  .layout.expanded { grid-template-columns: 0px 1fr; gap: 0; }
+  .panel.left {
+    min-width: 0; overflow: hidden;
+    transition:
+      opacity 0.22s ease, transform 0.35s ease, padding 0.35s ease,
+      border-color 0.35s ease, visibility 0s linear 0s;
+  }
+  .layout.expanded .left {
+    opacity: 0; transform: translateX(-28px); visibility: hidden;
+    padding-left: 0; padding-right: 0; border-color: transparent;
+    transition:
+      opacity 0.22s ease, transform 0.35s ease, padding 0.35s ease,
+      border-color 0.35s ease, visibility 0s linear 0.35s;
+  }
+  .panel.right { position: relative; }
+  .expand-btn {
+    position: absolute; top: 0.85rem; right: 0.85rem; z-index: 5;
+    display: grid; place-items: center; width: 32px; height: 32px;
+    background: transparent; border: 1px solid var(--line); border-radius: 6px;
+    color: var(--text-dim); cursor: pointer;
+  }
+  .expand-btn:hover { border-color: var(--gold-deep); color: var(--gold); }
+  .deck-head { padding-right: 2.75rem; }
   .panel {
     background: var(--panel);
     border: 1px solid var(--line);
@@ -671,18 +819,42 @@
   .deck-verdict.ok { color: var(--ok); }
   .deck-verdict.warn { color: var(--warn); }
   .deck-verdict.bad { color: var(--bad); }
-  .preview {
-    position: fixed; width: 320px; border-radius: 12px; pointer-events: none; z-index: 50;
+  /* Holographic hover preview: the wrap owns position + perspective, the card
+     tilts with smoothed cursor velocity, the glare tracks the tilt. */
+  .preview-wrap {
+    position: fixed; width: 320px; pointer-events: none; z-index: 50;
+    perspective: 700px;
+  }
+  .preview-card {
+    position: relative; border-radius: 12px; overflow: hidden;
     border: 1px solid rgba(255,232,31,0.25);
     box-shadow: 0 8px 30px rgba(0,0,0,0.6);
+    will-change: transform;
+  }
+  .preview-card img { width: 100%; display: block; }
+  .glare {
+    position: absolute; inset: 0; pointer-events: none;
+    background: radial-gradient(
+      circle at var(--gx, 50%) var(--gy, 50%),
+      rgba(255, 255, 255, 0.2),
+      rgba(255, 255, 255, 0.05) 35%,
+      transparent 60%
+    );
+    mix-blend-mode: screen;
   }
 
   @media (max-width: 900px) {
     .layout { grid-template-columns: 1fr; }
     .thumbs figure { width: 112px; }
+    /* Stacked layout: the column animation doesn't apply, just remove the row. */
+    .layout.expanded { grid-template-columns: 1fr; }
+    .layout.expanded .left { display: none; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .layout, .panel.left { transition: none; }
   }
   /* Touch devices: no hover, so never render the cursor-following preview. */
   @media (hover: none) {
-    .preview { display: none; }
+    .preview-wrap { display: none; }
   }
 </style>
