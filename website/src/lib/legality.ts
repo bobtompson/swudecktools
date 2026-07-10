@@ -12,10 +12,12 @@ export const PRERELEASE_DAYS = 7;
 // Release-date overrides ("M/D/YY") for sets whose swu-db catalog date is
 // wrong or missing. ASH's full release is 7/17/26 (catalog says 7/27/26), so
 // pre-release makes it Premier-legal from 7/10/26. IC27 releases 11/20/26
-// (announced; not yet in the catalog) -> Premier-legal 11/13/26.
+// (announced; not yet in the catalog) -> Premier-legal 11/13/26. TS26
+// released 5/8/26 (catalog says 7/11/26) — display-only, it's Premier-excluded.
 export const RELEASE_DATE_OVERRIDES: Record<string, string> = {
   ASH: '7/17/26',
   IC27: '11/20/26',
+  TS26: '5/8/26',
 };
 
 export const PREMIER_SUSPENDED_CARDS = new Set([

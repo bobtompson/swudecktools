@@ -7,11 +7,13 @@ Sort + Trilogy validator both functional, with Premier / Eternal / Twin Suns for
 
 - [x] **Theming pass** — done (2026-06). Barlow type, CSS starfield, gold accents, per-set
       logo/color section headers. Details in `DESIGN.md`.
-- [ ] **Deploy to Cloudflare Pages.**
-  - [ ] `git add` + initial commit (repo has no commits yet).
-  - [ ] Create a remote and push.
-  - [ ] Connect repo in Cloudflare Pages (build `npm run build`, output `dist`, root `website`),
-        or `npx wrangler pages deploy dist`. No env vars/secrets needed.
+- [x] **Deploy to Cloudflare** — done 2026-06-11, via git-connected **Workers** (not Pages;
+      Cloudflare's go-forward platform). Repo `bobtompson/swudecktools`, path `/website`,
+      build `npm run build`, deploy `npx wrangler deploy` (config in `website/wrangler.jsonc`;
+      `public/.assetsignore` keeps `_worker.js`/`_routes.json` out of the public assets).
+      Push to `main` = production deploy; branch pushes upload preview versions.
+      Live: <https://swudecktools.bob-tompson.workers.dev>
+  - [x] Custom domain live: <https://swu.0xfe.us> (Worker → Settings → Domains & Routes).
 
 ## Upcoming sets (Q4 2026)
 
