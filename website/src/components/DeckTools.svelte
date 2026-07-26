@@ -8,8 +8,8 @@
   import { validateDeck, validateTrilogy, type CardRef, type DeckValidation, type TrilogyValidation } from '../lib/validate';
   import { cardImage, cardImageUrl, swudbImageUrl } from '../lib/cards';
   import { setMeta, type SetMeta } from '../lib/sets';
-  import { SET_ORDER, SPECIAL_SET_ORDER, setStatus, type SetStatus } from '../lib/legality';
-  import { fetchLocalIndex, type LocalDataIndex } from '../lib/carddata';
+  import { SET_ORDER, SUB_SET_ORDER, setStatus, type SetStatus } from '../lib/legality';
+  import { fetchLocalIndex, buildPremierReprintNames, type LocalDataIndex } from '../lib/carddata';
   import type { NormalizedDeck, RawCard } from '../lib/types';
 
   // Image for a violation ref (carries the payload image path when known).
@@ -176,13 +176,14 @@
     try {
       // Assign results only after the jump resolves, so the cascade reveal
       // plays as the overlay fades rather than hidden behind it.
-      const { deck, catalog } = await holdJump(async () => ({
+      const { deck, catalog, reprints } = await holdJump(async () => ({
         deck: await loadDeck(sortUrl),
         catalog: await fetchSets(),
+        reprints: await buildPremierReprintNames(),
       }));
       sortNorm = deck;
       sorted = sortDeck(deck);
-      sortValidation = validateDeck(deck, catalog);
+      sortValidation = validateDeck(deck, catalog, reprints);
     } catch (err) {
       sortError = err instanceof Error ? err.message : String(err);
     } finally {
@@ -202,12 +203,16 @@
     }
     valBusy = true;
     try {
-      const { decks, catalog } = await holdJump(async () => {
-        const cat = await fetchSets();
-        return { decks: await Promise.all(inputs.map(loadDeck)), catalog: cat };
+      const { decks, catalog, reprints } = await holdJump(async () => {
+        const [cat, rep] = await Promise.all([fetchSets(), buildPremierReprintNames()]);
+        return { decks: await Promise.all(inputs.map(loadDeck)), catalog: cat, reprints: rep };
       });
       // validateTrilogy judges every deck by the trilogy's format and returns them.
-      trilogy = validateTrilogy(decks as [NormalizedDeck, NormalizedDeck, NormalizedDeck], catalog);
+      trilogy = validateTrilogy(
+        decks as [NormalizedDeck, NormalizedDeck, NormalizedDeck],
+        catalog,
+        reprints,
+      );
       perDeck = trilogy.perDeck;
     } catch (err) {
       valError = err instanceof Error ? err.message : String(err);
@@ -231,7 +236,7 @@
     try {
       const [catalog, index] = await Promise.all([fetchSets(), fetchLocalIndex()]);
       localIndex = index;
-      setsStatuses = [...SET_ORDER, ...SPECIAL_SET_ORDER].map((c) => setStatus(c, catalog));
+      setsStatuses = [...SET_ORDER, ...SUB_SET_ORDER].map((c) => setStatus(c, catalog));
     } catch (err) {
       setsError = err instanceof Error ? err.message : String(err);
     }

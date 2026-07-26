@@ -1,5 +1,5 @@
 import type { NormalizedDeck, DeckCard, RawCard } from './types';
-import { SET_ORDER, SPECIAL_SET_ORDER } from './legality';
+import { SET_ORDER, SUB_SET_ORDER } from './legality';
 import { formatCardName, padNumber } from './cards';
 
 // Wrap a leader/base RawCard as a single-copy DeckCard so it groups with the
@@ -47,14 +47,14 @@ function mergeByPrinting(cards: DeckCard[]): DeckCard[] {
   return [...byKey.values()];
 }
 
-// Order index for a set: main sets first, then special sets, then unknown
+// Order index for a set: main sets first, then sub sets, then unknown
 // (alphabetical) after both.
 function setRank(set: string): [number, string] {
   const main = SET_ORDER.indexOf(set);
   if (main !== -1) return [main, set];
-  const special = SPECIAL_SET_ORDER.indexOf(set);
-  if (special !== -1) return [SET_ORDER.length + special, set];
-  return [SET_ORDER.length + SPECIAL_SET_ORDER.length, set];
+  const sub = SUB_SET_ORDER.indexOf(set);
+  if (sub !== -1) return [SET_ORDER.length + sub, set];
+  return [SET_ORDER.length + SUB_SET_ORDER.length, set];
 }
 
 export function sortDeck(deck: NormalizedDeck): SortedDeck {

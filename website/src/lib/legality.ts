@@ -1,21 +1,27 @@
 import type { SetInfo } from './types';
 
-// Port of constants in lib/swudb.py.
-export const PREMIER_LEGAL_MAIN_SETS = new Set(['JTL', 'LOF', 'IBH', 'SEC', 'LAW']);
+// Port of constants in lib/swudb.py. Premier-legal sets span both main sets
+// (LOF, SEC, LAW, ASH, ...) and sub sets (IBH). Next rotation: JTL rotates
+// out when Legacy of Skywalker (set 10, first 2027 set) releases — the plan
+// appears to be rotating the oldest Premier-legal set annually.
+export const PREMIER_LEGAL_SETS = new Set(['JTL', 'LOF', 'IBH', 'SEC', 'LAW', 'ASH']);
 export const PREMIER_ROTATED_SETS = new Set(['SOR', 'SHD', 'TWI']);
 export const PREMIER_EXCLUDED_SETS = new Set(['TS26']);
-// IC27 = "Icons 2027 Edition", an IBH-like Premier-legal supplemental set
-// releasing 11/20/26 (override below; flips legal at release - 7 days).
-export const PREMIER_PENDING_SETS = new Set(['ASH', 'IC27']);
+// HMW = "HomeWorlds", the main set after ASH, releasing 10/18/26. IC27 =
+// "Icons 2027 Edition", an IBH-like Premier-legal supplemental set releasing
+// 11/20/26. Both use overrides below and flip legal at release - 7 days.
+export const PREMIER_PENDING_SETS = new Set(['HMW', 'IC27']);
 export const PRERELEASE_DAYS = 7;
 
 // Release-date overrides ("M/D/YY") for sets whose swu-db catalog date is
-// wrong or missing. ASH's full release is 7/17/26 (catalog says 7/27/26), so
-// pre-release makes it Premier-legal from 7/10/26. IC27 releases 11/20/26
-// (announced; not yet in the catalog) -> Premier-legal 11/13/26. TS26
+// wrong or missing. ASH released 7/17/26 (catalog says 7/27/26) — display-only
+// now that ASH is in PREMIER_LEGAL_SETS. HMW releases 10/18/26
+// (announced; not yet in the catalog) -> Premier-legal 10/11/26. IC27 releases
+// 11/20/26 (announced; not yet in the catalog) -> Premier-legal 11/13/26. TS26
 // released 5/8/26 (catalog says 7/11/26) — display-only, it's Premier-excluded.
 export const RELEASE_DATE_OVERRIDES: Record<string, string> = {
   ASH: '7/17/26',
+  HMW: '10/18/26',
   IC27: '11/20/26',
   TS26: '5/8/26',
 };
@@ -33,11 +39,17 @@ export const PREMIER_SUSPENDED_CARDS = new Set([
 // https://starwarsunlimited.com/how-to-play?chapter=rules
 export const ETERNAL_BANNED_CARDS = new Set(['ig-2000', 'war juggernaut']);
 
-// Display order for sorting output. Main sets first, then specials, then unknown.
-// "Homeworlds" (main set after ASH, Oct 2026) joins between ASH and IC27 once
-// its code is known — it releases before IC27 (11/20/26).
-export const SET_ORDER = ['SOR', 'SHD', 'TWI', 'JTL', 'LOF', 'IBH', 'SEC', 'LAW', 'ASH', 'IC27'];
-export const SPECIAL_SET_ORDER = ['TS26'];
+// Display order for sorting output: main numbered sets ("set 1" SOR through
+// "set 9" HMW) first, then sub sets (supplemental products, release order),
+// then unknown codes.
+// 2027 sets teased at Worlds 2026 (codes TBD), in timeline order: Legacy of
+// Skywalker (set 10), System Overload, Icons 2028 (a sub set, likely IC28),
+// Galaxy at War. Starting with set 10, every main set ships with two Twin Suns
+// decks following the TS26 model: the sub set code holds only the new Twin
+// Suns-exclusive cards (Premier-excluded); the rest of each deck is reprints
+// carrying their own sets' codes.
+export const SET_ORDER = ['SOR', 'SHD', 'TWI', 'JTL', 'LOF', 'SEC', 'LAW', 'ASH', 'HMW'];
+export const SUB_SET_ORDER = ['IBH', 'TS26', 'IC27'];
 
 interface Legality {
   premier: boolean;
@@ -83,7 +95,7 @@ export function setLegality(
 
   if (PREMIER_EXCLUDED_SETS.has(effectiveParent) || PREMIER_ROTATED_SETS.has(effectiveParent)) {
     premier = false;
-  } else if (PREMIER_LEGAL_MAIN_SETS.has(effectiveParent)) {
+  } else if (PREMIER_LEGAL_SETS.has(effectiveParent)) {
     premier = true;
   } else if (PREMIER_PENDING_SETS.has(effectiveParent)) {
     const parentInfo = catalog.find((s) => s.setId === effectiveParent) ?? info;

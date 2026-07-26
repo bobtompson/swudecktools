@@ -104,11 +104,16 @@ function copyLimitReasons(deck: NormalizedDeck, limitFor: (c: DeckCard) => numbe
   return reasons;
 }
 
-// Port of validate_premier. The reprint-by-name allowance (a non-legal printing
-// passing because the name is reprinted in a legal set) needs per-set card
-// lists we don't load client-side — such cards are flagged as a note instead of
-// silently passing.
-export function validatePremier(deck: NormalizedDeck, catalog: SetInfo[]): DeckValidation {
+// Port of validate_premier, including the reprint rule: a printing from a
+// non-legal set still passes if its full name (Name - Subtitle) is printed in
+// any Premier-legal set (pool from carddata.buildPremierReprintNames). When
+// the pool is unavailable (local data not exported / unreachable), such cards
+// are flagged as a verify-manually note instead of silently passing or failing.
+export function validatePremier(
+  deck: NormalizedDeck,
+  catalog: SetInfo[],
+  reprintNames: Set<string> | null = null,
+): DeckValidation {
   const reasons = validateConstructedStructure(deck, 3);
   const notes: string[] = [];
 
@@ -118,9 +123,17 @@ export function validatePremier(deck: NormalizedDeck, catalog: SetInfo[]): DeckV
       continue;
     }
     if (setLegality(entry.set, catalog).premier) continue;
-    notes.push(
-      `${printingLabel(entry)} is from ${entry.set}, which is not Premier-legal. ` +
-        `If the card has a Premier-legal reprint it is still legal — verify manually.`,
+    if (reprintNames === null) {
+      notes.push(
+        `${printingLabel(entry)} is from ${entry.set}, which is not Premier-legal. ` +
+          `If the card has a Premier-legal reprint it is still legal — verify manually.`,
+      );
+      continue;
+    }
+    if (reprintNames.has(entry.name.trim().toLowerCase())) continue;
+    reasons.push(
+      `${printingLabel(entry)} is from ${entry.set}, which is not Premier-legal, ` +
+        `and the card has no sourced Premier-legal reprint.`,
     );
   }
 
@@ -191,21 +204,41 @@ export function validateEternal(deck: NormalizedDeck): DeckValidation {
 }
 
 // A constructed deck is Premier only if every printing it uses (leaders, base,
-// main, side) is from a Premier-legal set. Otherwise — rotated sets (SOR/SHD/TWI)
-// or TS26 cards — it's an Eternal deck.
-function isPremierLegalPool(deck: NormalizedDeck, catalog: SetInfo[]): boolean {
-  const sets: string[] = [];
-  for (const l of deck.leaders) sets.push((l.defaultExpansionAbbreviation ?? '').toUpperCase());
-  if (deck.base) sets.push((deck.base.defaultExpansionAbbreviation ?? '').toUpperCase());
-  for (const c of [...deck.mainboard, ...deck.sideboard]) sets.push(c.set);
-  return sets.every((s) => setLegality(s, catalog).premier);
+// main, side) is from a Premier-legal set or has a Premier-legal reprint by
+// full name. Otherwise — rotated sets (SOR/SHD/TWI) or TS26 cards — it's an
+// Eternal deck.
+function isPremierLegalPool(
+  deck: NormalizedDeck,
+  catalog: SetInfo[],
+  reprintNames: Set<string> | null,
+): boolean {
+  const cards: { set: string; name: string }[] = [];
+  for (const l of deck.leaders) {
+    cards.push({ set: (l.defaultExpansionAbbreviation ?? '').toUpperCase(), name: formatCardName(l) });
+  }
+  if (deck.base) {
+    cards.push({
+      set: (deck.base.defaultExpansionAbbreviation ?? '').toUpperCase(),
+      name: formatCardName(deck.base),
+    });
+  }
+  for (const c of [...deck.mainboard, ...deck.sideboard]) cards.push({ set: c.set, name: c.name });
+  return cards.every(
+    (c) =>
+      setLegality(c.set, catalog).premier ||
+      (reprintNames !== null && reprintNames.has(c.name.trim().toLowerCase())),
+  );
 }
 
 // A deck's format: Twin Suns (2 leaders), else Premier if the whole pool is
 // Premier-legal, else Eternal.
-export function classifyDeck(deck: NormalizedDeck, catalog: SetInfo[]): DeckFormat {
+export function classifyDeck(
+  deck: NormalizedDeck,
+  catalog: SetInfo[],
+  reprintNames: Set<string> | null = null,
+): DeckFormat {
   if (detectFormat(deck) === 'twinSuns') return 'twinSuns';
-  return isPremierLegalPool(deck, catalog) ? 'premier' : 'eternal';
+  return isPremierLegalPool(deck, catalog, reprintNames) ? 'premier' : 'eternal';
 }
 
 // Validate a deck against a specific format (used inside a trilogy, where every
@@ -215,14 +248,19 @@ export function validateDeckAs(
   deck: NormalizedDeck,
   format: DeckFormat,
   catalog: SetInfo[],
+  reprintNames: Set<string> | null = null,
 ): DeckValidation {
   if (format === 'twinSuns') return validateTwinSuns(deck);
   if (format === 'eternal') return validateEternal(deck);
-  return validatePremier(deck, catalog);
+  return validatePremier(deck, catalog, reprintNames);
 }
 
-export function validateDeck(deck: NormalizedDeck, catalog: SetInfo[]): DeckValidation {
-  return validateDeckAs(deck, classifyDeck(deck, catalog), catalog);
+export function validateDeck(
+  deck: NormalizedDeck,
+  catalog: SetInfo[],
+  reprintNames: Set<string> | null = null,
+): DeckValidation {
+  return validateDeckAs(deck, classifyDeck(deck, catalog, reprintNames), catalog, reprintNames);
 }
 
 // ---- Trilogy cross-deck rules (port of trilogy_validator.py) ----
@@ -301,8 +339,9 @@ const TRILOGY_LABEL: Record<DeckFormat, string> = {
 export function validateTrilogy(
   decks: [NormalizedDeck, NormalizedDeck, NormalizedDeck],
   catalog: SetInfo[],
+  reprintNames: Set<string> | null = null,
 ): TrilogyValidation {
-  const formats = decks.map((d) => classifyDeck(d, catalog));
+  const formats = decks.map((d) => classifyDeck(d, catalog, reprintNames));
   const twinCount = formats.filter((f) => f === 'twinSuns').length;
 
   // Twin Suns may not be combined with Premier/Eternal. Show each deck under its
@@ -318,7 +357,10 @@ export function validateTrilogy(
         'Twin Suns decks (two leaders) cannot be combined with Premier or Eternal decks. ' +
           'All three decks must be Twin Suns, or all three must be Premier/Eternal.',
       ],
-      perDeck: decks.map((deck, i) => ({ deck, result: validateDeckAs(deck, formats[i], catalog) })),
+      perDeck: decks.map((deck, i) => ({
+        deck,
+        result: validateDeckAs(deck, formats[i], catalog, reprintNames),
+      })),
     };
   }
 
@@ -328,7 +370,10 @@ export function validateTrilogy(
 
   // Every deck is judged by the trilogy's format. In an Eternal trilogy this
   // applies Eternal rules (incl. the banlist) to Premier decks too.
-  const perDeck = decks.map((deck) => ({ deck, result: validateDeckAs(deck, format, catalog) }));
+  const perDeck = decks.map((deck) => ({
+    deck,
+    result: validateDeckAs(deck, format, catalog, reprintNames),
+  }));
 
   const dupViolations = [
     ...findDupViolations(decks, (d) => d.leaders, 'Leader'),

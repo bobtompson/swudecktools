@@ -1,5 +1,5 @@
 {
-  "generated": "2026-06-10",
+  "generated": "2026-07-26",
   "sets": {
     "SOR": {
       "cards": 510,
@@ -26,7 +26,7 @@
       "base": 104
     },
     "SEC": {
-      "cards": 1150,
+      "cards": 1151,
       "base": 264
     },
     "LAW": {
@@ -34,7 +34,7 @@
       "base": 264
     },
     "ASH": {
-      "cards": 264,
+      "cards": 925,
       "base": 264
     },
     "TS26": {
