@@ -19,7 +19,7 @@ const SETS: Record<string, Omit<SetMeta, 'code'>> = {
   SEC: { name: 'Secrets of Power', color: '#68177f', logo: '/sets/sec.png' },
   LAW: { name: 'A Lawless Time', color: '#ff6900', logo: '/sets/law.png' },
   ASH: { name: 'Ashes of the Empire', color: '#425563', logo: '/sets/ash.png' },
-  HMW: { name: 'HomeWorlds', color: null, logo: null },
+  HMW: { name: 'Homeworlds', color: null, logo: null },
   // Sub sets (supplemental products), release order.
   IBH: { name: 'Intro Battle: Hoth', color: null, logo: '/sets/ibh.png' },
   TS26: { name: '2026 Twin Suns', color: null, logo: null },

@@ -40,9 +40,9 @@ Sort + Trilogy validator both functional, with Premier / Eternal / Twin Suns for
       **11/20/26** (in `RELEASE_DATE_OVERRIDES`, `lib/legality.ts` + `swu-tools/lib/swudb.py`;
       flips Premier-legal 11/13/26 even if the swu-db catalog lags). Still to do: add
       logo/color to `lib/sets.ts` + `public/sets/` when the media kit ships them.
-- [x] **HMW (HomeWorlds)** (main set after ASH) — announced 2026-07, releases **10/18/26**
+- [x] **HMW (Homeworlds)** (main set after ASH) — announced 2026-07, releases **10/9/26**
       (in `RELEASE_DATE_OVERRIDES`, `lib/legality.ts` + `swu-tools/lib/swudb.py`; flips
-      Premier-legal 10/11/26 even if the swu-db catalog lags). Added to `SET_ORDER`,
+      Premier-legal 10/2/26 even if the swu-db catalog lags). Added to `SET_ORDER`,
       `PREMIER_PENDING_SETS`, `lib/sets.ts`, and Python `MAIN_SETS` (2026-07-26). Still to
       do: logo/color in `lib/sets.ts` + `public/sets/` when the media kit ships them, and a
       TCGplayer group id in `swu-tools/lib/tcgcsv.py` once TCGplayer lists the set.

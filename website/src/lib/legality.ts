@@ -7,7 +7,7 @@ import type { SetInfo } from './types';
 export const PREMIER_LEGAL_SETS = new Set(['JTL', 'LOF', 'IBH', 'SEC', 'LAW', 'ASH']);
 export const PREMIER_ROTATED_SETS = new Set(['SOR', 'SHD', 'TWI']);
 export const PREMIER_EXCLUDED_SETS = new Set(['TS26']);
-// HMW = "HomeWorlds", the main set after ASH, releasing 10/18/26. IC27 =
+// HMW = "Homeworlds", the main set after ASH, releasing 10/9/26. IC27 =
 // "Icons 2027 Edition", an IBH-like Premier-legal supplemental set releasing
 // 11/20/26. Both use overrides below and flip legal at release - 7 days.
 export const PREMIER_PENDING_SETS = new Set(['HMW', 'IC27']);
@@ -15,13 +15,13 @@ export const PRERELEASE_DAYS = 7;
 
 // Release-date overrides ("M/D/YY") for sets whose swu-db catalog date is
 // wrong or missing. ASH released 7/17/26 (catalog says 7/27/26) — display-only
-// now that ASH is in PREMIER_LEGAL_SETS. HMW releases 10/18/26
-// (announced; not yet in the catalog) -> Premier-legal 10/11/26. IC27 releases
+// now that ASH is in PREMIER_LEGAL_SETS. HMW releases 10/9/26
+// (announced; not yet in the catalog) -> Premier-legal 10/2/26. IC27 releases
 // 11/20/26 (announced; not yet in the catalog) -> Premier-legal 11/13/26. TS26
 // released 5/8/26 (catalog says 7/11/26) — display-only, it's Premier-excluded.
 export const RELEASE_DATE_OVERRIDES: Record<string, string> = {
   ASH: '7/17/26',
-  HMW: '10/18/26',
+  HMW: '10/9/26',
   IC27: '11/20/26',
   TS26: '5/8/26',
 };
