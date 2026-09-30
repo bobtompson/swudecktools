@@ -1,5 +1,5 @@
 {
-  "generated": "2026-07-26",
+  "generated": "2026-09-30",
   "sets": {
     "SOR": {
       "cards": 510,
@@ -40,6 +40,14 @@
     "TS26": {
       "cards": 84,
       "base": 84
+    },
+    "HMW": {
+      "cards": 954,
+      "base": 272
+    },
+    "IC27": {
+      "cards": 9,
+      "base": 9
     }
   }
 }

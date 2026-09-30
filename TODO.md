@@ -44,8 +44,11 @@ Sort + Trilogy validator both functional, with Premier / Eternal / Twin Suns for
       (in `RELEASE_DATE_OVERRIDES`, `lib/legality.ts` + `swu-tools/lib/swudb.py`; flips
       Premier-legal 10/2/26 even if the swu-db catalog lags). Added to `SET_ORDER`,
       `PREMIER_PENDING_SETS`, `lib/sets.ts`, and Python `MAIN_SETS` (2026-07-26). Still to
-      do: logo/color in `lib/sets.ts` + `public/sets/` when the media kit ships them, and a
-      TCGplayer group id in `swu-tools/lib/tcgcsv.py` once TCGplayer lists the set.
+      do: logo/color in `lib/sets.ts` + `public/sets/` when the media kit ships them (media
+      kit API was 502ing on 2026-09-30). Done 2026-09-30: TCGplayer group id (24812) in
+      `swu-tools/lib/tcgcsv.py`; `public/data/hmw.json` exported (272 base / 954 printings).
+      HMW is the first set with token cards in swu-db (`T01`–`T05`); the exporter leaves them
+      out of `base` so the staleness check matches the catalog.
 
 ## Features / correctness
 
