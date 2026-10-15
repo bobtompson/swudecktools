@@ -1,6 +1,6 @@
 // Per-set display metadata: full name, official signature color (from the SWU
 // media kit's SWH_Color swatches), and the vendored logo in /public/sets/.
-// IBH ships a logo but no official color; TS26 has neither.
+// IBH and IC27 ship a logo but no official color; TS26 has neither.
 
 export interface SetMeta {
   code: string;
@@ -19,11 +19,11 @@ const SETS: Record<string, Omit<SetMeta, 'code'>> = {
   SEC: { name: 'Secrets of Power', color: '#68177f', logo: '/sets/sec.png' },
   LAW: { name: 'A Lawless Time', color: '#ff6900', logo: '/sets/law.png' },
   ASH: { name: 'Ashes of the Empire', color: '#425563', logo: '/sets/ash.png' },
-  HMW: { name: 'Homeworlds', color: null, logo: null },
+  HMW: { name: 'Homeworlds', color: '#007a3e', logo: '/sets/hmw.png' },
   // Sub sets (supplemental products), release order.
   IBH: { name: 'Intro Battle: Hoth', color: null, logo: '/sets/ibh.png' },
   TS26: { name: '2026 Twin Suns', color: null, logo: null },
-  IC27: { name: 'Icons 2027 Edition', color: null, logo: null },
+  IC27: { name: 'Icons 2027 Edition', color: null, logo: '/sets/ic27.png' },
 };
 
 // Unknown codes degrade to a text-only header with the neutral accent.

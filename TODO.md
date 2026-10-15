@@ -39,14 +39,14 @@ Sort + Trilogy validator both functional, with Premier / Eternal / Twin Suns for
 - [ ] **IC27 (Icons 2027 Edition)** — Premier-pending (IBH-like supplemental), releases
       **11/21/26** (in `RELEASE_DATE_OVERRIDES`, `lib/legality.ts` + `swu-tools/lib/swudb.py`);
       Premier-legal **11/27/26** via `PREMIER_LEGAL_DATE_OVERRIDES` (not the usual release - 7),
-      even if the swu-db catalog lags. Still to do: add
-      logo/color to `lib/sets.ts` + `public/sets/` when the media kit ships them.
+      even if the swu-db catalog lags. Logo added to `lib/sets.ts` + `public/sets/` from the
+      media kit 2026-10-15 (Icons has no set color in the kit).
 - [x] **HMW (Homeworlds)** (main set after ASH) — announced 2026-07, releases **10/9/26**
       (in `RELEASE_DATE_OVERRIDES`, `lib/legality.ts` + `swu-tools/lib/swudb.py`; flips
       Premier-legal 10/2/26 even if the swu-db catalog lags). Added to `SET_ORDER`,
-      `PREMIER_PENDING_SETS`, `lib/sets.ts`, and Python `MAIN_SETS` (2026-07-26). Still to
-      do: logo/color in `lib/sets.ts` + `public/sets/` when the media kit ships them (media
-      kit API was 502ing on 2026-09-30). Done 2026-09-30: TCGplayer group id (24812) in
+      `PREMIER_PENDING_SETS`, `lib/sets.ts`, and Python `MAIN_SETS` (2026-07-26). Logo +
+      color (`#007a3e`) added from the media kit 2026-10-15 (the media-kit API still 502s;
+      the asset URLs were read off the rendered page). Done 2026-09-30: TCGplayer group id (24812) in
       `swu-tools/lib/tcgcsv.py`; `public/data/hmw.json` exported (272 base / 954 printings).
       HMW is the first set with token cards in swu-db (`T01`–`T05`); the exporter leaves them
       out of `base` so the staleness check matches the catalog.
