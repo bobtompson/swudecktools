@@ -37,8 +37,9 @@ Sort + Trilogy validator both functional, with Premier / Eternal / Twin Suns for
       `ts26_decks.json`-style origin file for pre-con tagging in the sorter.)
 
 - [ ] **IC27 (Icons 2027 Edition)** — Premier-pending (IBH-like supplemental), releases
-      **11/20/26** (in `RELEASE_DATE_OVERRIDES`, `lib/legality.ts` + `swu-tools/lib/swudb.py`;
-      flips Premier-legal 11/13/26 even if the swu-db catalog lags). Still to do: add
+      **11/21/26** (in `RELEASE_DATE_OVERRIDES`, `lib/legality.ts` + `swu-tools/lib/swudb.py`);
+      Premier-legal **11/27/26** via `PREMIER_LEGAL_DATE_OVERRIDES` (not the usual release - 7),
+      even if the swu-db catalog lags. Still to do: add
       logo/color to `lib/sets.ts` + `public/sets/` when the media kit ships them.
 - [x] **HMW (Homeworlds)** (main set after ASH) — announced 2026-07, releases **10/9/26**
       (in `RELEASE_DATE_OVERRIDES`, `lib/legality.ts` + `swu-tools/lib/swudb.py`; flips

@@ -9,7 +9,8 @@ export const PREMIER_ROTATED_SETS = new Set(['SOR', 'SHD', 'TWI']);
 export const PREMIER_EXCLUDED_SETS = new Set(['TS26']);
 // HMW = "Homeworlds", the main set after ASH, releasing 10/9/26. IC27 =
 // "Icons 2027 Edition", an IBH-like Premier-legal supplemental set releasing
-// 11/20/26. Both use overrides below and flip legal at release - 7 days.
+// 11/21/26. Pending sets flip legal at release - 7 days, unless
+// PREMIER_LEGAL_DATE_OVERRIDES gives an explicit date.
 export const PREMIER_PENDING_SETS = new Set(['HMW', 'IC27']);
 export const PRERELEASE_DAYS = 7;
 
@@ -17,13 +18,20 @@ export const PRERELEASE_DAYS = 7;
 // wrong or missing. ASH released 7/17/26 (catalog says 7/27/26) — display-only
 // now that ASH is in PREMIER_LEGAL_SETS. HMW releases 10/9/26
 // (announced; not yet in the catalog) -> Premier-legal 10/2/26. IC27 releases
-// 11/20/26 (announced; not yet in the catalog) -> Premier-legal 11/13/26. TS26
+// 11/21/26 (Premier date: see below). TS26
 // released 5/8/26 (catalog says 7/11/26) — display-only, it's Premier-excluded.
 export const RELEASE_DATE_OVERRIDES: Record<string, string> = {
   ASH: '7/17/26',
   HMW: '10/9/26',
-  IC27: '11/20/26',
+  IC27: '11/21/26',
   TS26: '5/8/26',
+};
+
+// Explicit Premier-legal dates ("M/D/YY") for pending sets that don't follow
+// the release - PRERELEASE_DAYS rule. IC27 releases 11/21/26 but is only
+// Premier-legal from 11/27/26 (no pre-release window for Icons).
+export const PREMIER_LEGAL_DATE_OVERRIDES: Record<string, string> = {
+  IC27: '11/27/26',
 };
 
 export const PREMIER_SUSPENDED_CARDS = new Set([
@@ -69,6 +77,18 @@ function parseReleaseDate(s: string | undefined): Date | null {
   return new Date(year, month - 1, day);
 }
 
+// Port of premier_legal_date: the date a pending set becomes Premier-legal,
+// or null if unknown. The explicit override wins; otherwise release date
+// (override, then catalog) minus PRERELEASE_DAYS.
+export function premierLegalDate(setId: string, catalogRelease?: string): Date | null {
+  const explicit = parseReleaseDate(PREMIER_LEGAL_DATE_OVERRIDES[setId]);
+  if (explicit) return explicit;
+  const release = parseReleaseDate(RELEASE_DATE_OVERRIDES[setId] ?? catalogRelease);
+  if (!release) return null;
+  release.setDate(release.getDate() - PRERELEASE_DAYS);
+  return release;
+}
+
 // Port of set_legality. `today` is injectable for deterministic tests.
 export function setLegality(
   setId: string,
@@ -79,13 +99,9 @@ export function setLegality(
   if (!info) {
     // swu-db's catalog lags on new sets; a pending set with an override date
     // can still flip Premier-legal on schedule.
-    if (PREMIER_PENDING_SETS.has(setId) && RELEASE_DATE_OVERRIDES[setId]) {
-      const release = parseReleaseDate(RELEASE_DATE_OVERRIDES[setId]);
-      if (release) {
-        const window = new Date(release);
-        window.setDate(window.getDate() - PRERELEASE_DAYS);
-        return { premier: today >= window, eternal: true, twinSuns: true };
-      }
+    if (PREMIER_PENDING_SETS.has(setId)) {
+      const legalFrom = premierLegalDate(setId);
+      if (legalFrom) return { premier: today >= legalFrom, eternal: true, twinSuns: true };
     }
     return { premier: false, eternal: true, twinSuns: true };
   }
@@ -99,16 +115,8 @@ export function setLegality(
     premier = true;
   } else if (PREMIER_PENDING_SETS.has(effectiveParent)) {
     const parentInfo = catalog.find((s) => s.setId === effectiveParent) ?? info;
-    const release = parseReleaseDate(
-      RELEASE_DATE_OVERRIDES[effectiveParent] ?? parentInfo.releaseDate,
-    );
-    if (release) {
-      const window = new Date(release);
-      window.setDate(window.getDate() - PRERELEASE_DAYS);
-      premier = today >= window;
-    } else {
-      premier = false;
-    }
+    const legalFrom = premierLegalDate(effectiveParent, parentInfo.releaseDate);
+    premier = legalFrom !== null && today >= legalFrom;
   } else {
     premier = false;
   }
@@ -123,6 +131,7 @@ export interface SetStatus {
   inCatalog: boolean;
   releaseDate: string | null; // "M/D/YY" (override wins over catalog)
   dateOverridden: boolean;
+  released: boolean; // releaseDate is known and today is on/after it
   premierKind: 'legal' | 'pending' | 'rotated' | 'excluded';
   premierFrom: string | null; // "M/D/YY" flip date for pending sets with a known date
   catalogCards: number | null; // numberCards from the catalog (for staleness checks)
@@ -144,19 +153,19 @@ export function setStatus(code: string, catalog: SetInfo[], today: Date = new Da
   else premierKind = 'pending';
 
   let premierFrom: string | null = null;
-  if (premierKind === 'pending' && releaseDate) {
-    const release = parseReleaseDate(releaseDate);
-    if (release) {
-      release.setDate(release.getDate() - PRERELEASE_DAYS);
-      premierFrom = formatMDY(release);
-    }
+  if (premierKind === 'pending') {
+    const legalFrom = premierLegalDate(code, info?.releaseDate);
+    if (legalFrom) premierFrom = formatMDY(legalFrom);
   }
+
+  const release = parseReleaseDate(releaseDate ?? undefined);
 
   return {
     code,
     inCatalog: info !== undefined,
     releaseDate,
     dateOverridden: override !== undefined,
+    released: release !== null && today >= release,
     premierKind,
     premierFrom,
     catalogCards: info?.numberCards ?? null,

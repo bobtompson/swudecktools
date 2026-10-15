@@ -260,7 +260,8 @@
   function setWarnings(st: SetStatus, meta: SetMeta): string[] {
     const w: string[] = [];
     if (!st.inCatalog) w.push('Not in the swu-db /sets catalog yet');
-    if (st.dateOverridden) w.push(`Release date overridden (${st.releaseDate})`);
+    // Overrides only matter until the set is out; afterwards they're display-only.
+    if (st.dateOverridden && !st.released) w.push(`Release date overridden (${st.releaseDate})`);
     if (!meta.logo && !meta.color) w.push('No media-kit logo or color');
     const local = localIndex?.sets[st.code];
     if (!local) {
