@@ -1,8 +1,8 @@
 # Star Wars Unlimited Deck Tools
 
-A single-page web app to **sort a deck by set** and **validate a three-deck trilogy** for
+A single-page web app to **sort a deck by set**, **validate a three-deck trilogy**, and **diff two decks** for
 [Star Wars: Unlimited](https://starwarsunlimited.com/). It's the website version of the
-`sort_deck_by_set.py` and `trilogy_validator.py` scripts in `~/github/swu-tools`.
+`sort_deck_by_set.py`, `trilogy_validator.py`, and `deck_diff.py` scripts in `~/github/swu-tools`.
 
 Paste a [swudb.com](https://swudb.com) deck URL on the left; the sorted list or validation
 result renders on the right. All deck logic runs in the browser off a single deck API call.
@@ -22,6 +22,11 @@ result renders on the right. All deck logic runs in the browser off a single dec
   trilogy is a **Premier Trilogy** only if all three decks are Premier, otherwise an **Eternal
   Trilogy** (Premier decks are allowed alongside Eternal). Combined copy limit: 1 (Twin Suns) / 3
   (Premier / Eternal).
+- **Deck diff:** paste an original and a new deck URL to get the cards to pull (red) and add
+  (green), split into Leaders / Base / Main Deck / Sideboard. Each line is the copy-count change
+  (`+ 1x … 2 → 3`), and a final **Net Cards** section combines main deck + sideboard so cards that
+  only move between them cancel out. Copy-as-markdown produces the same ```` ```diff ```` blocks as
+  `deck_diff.py --markdown`.
 - **Hover preview:** hovering any card row / thumbnail shows the full card art, following the
   cursor.
 - Deck 1/2/3 are color-coded (blue/gold/teal) across the trilogy view.
@@ -62,6 +67,7 @@ live catalog and flags missing/stale data with a ⚠.
 | `normalize.ts` | Parse deck URL, normalize the API payload, detect format |
 | `sort.ts` | Group/sort cards by set (port of `sort_deck_by_set.py`) |
 | `validate.ts` | Per-deck Premier / Eternal / Twin Suns + trilogy cross-deck rules |
+| `diff.ts` | Deck diff + diff markdown (port of `deck_diff.py`) |
 | `legality.ts` | Set-rotation / pre-release legality, Eternal banlist + constants |
 | `cards.ts` | Card identity, image URLs, aspect/alignment helpers |
 | `swudb.ts` | Proxy client (`fetchDeck`, `fetchSets`) |
@@ -91,6 +97,15 @@ validation output to eyeball against the Python CLI:
 
 ```bash
 cd website && npx tsx test/parity.ts <deckId>
+```
+
+`website/test/diff.ts` does the same for the deck diff: it prints the diff markdown for two deck
+ids (defaults to a known pair) and fails if a deck diffed against itself reports changes. Compare
+with `uv run python deck_diff.py <old> <new> --markdown` — everything after the CLI's `Command:`
+block should match line for line.
+
+```bash
+cd website && npx tsx test/diff.ts <oldDeckId> <newDeckId>
 ```
 
 ## Deployment (Cloudflare Pages)

@@ -12,7 +12,7 @@ import DeckTools from '../components/DeckTools.svelte';
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>SWU Deck Tools</title>
-    <meta name="description" content="Sort Star Wars Unlimited decks by set and validate trilogy decklists." />
+    <meta name="description" content="Sort Star Wars Unlimited decks by set, diff two versions of a deck, and validate trilogy decklists." />
     <script is:inline>
       // Pick a random header key art before first paint (default is jtl without JS).
       document.documentElement.dataset.hero = Math.random() < 0.5 ? 'jtl' : 'lof';
@@ -28,7 +28,7 @@ import DeckTools from '../components/DeckTools.svelte';
     <header class="site-head">
       <div class="site-head-inner">
         <h1><span class="gold">SWU</span> Deck Tools</h1>
-        <p>Sort a deck by set, or validate a three-deck trilogy.</p>
+        <p>Sort a deck by set, diff two decks, or validate a three-deck trilogy.</p>
         <button id="font-toggle" type="button" title="Switch between Aurebesh and Galactic Basic"
           aria-label="Switch between Aurebesh and Galactic Basic"></button>
       </div>

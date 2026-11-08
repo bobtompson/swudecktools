@@ -16,7 +16,10 @@ Reference screenshots live in `design_images/`.
 
 ## Current layout (implemented)
 
-- Two-column: **left** = form panel with a Sort / Validate toggle; **right** = output.
+- Two-column: **left** = form panel with a Sort / Diff / Validate toggle; **right** = output.
+- **Diff output:** Original / New deck rows (red / green accent, thumbnails, aspects, counts),
+  a `+N −N` summary, copy-as-markdown, then per-section rows tinted red (pull) / green (add) with
+  `old → new` counts; the Net Cards section gets a gold accent and a one-line explanation.
 - **Sort output:** deck header with leader/base thumbnails + card count + aspect icons,
   then per-set sections; "copy as markdown".
 - **Hover** any card row, leader/base thumbnail, or violation card → full card-art preview

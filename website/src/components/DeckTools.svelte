@@ -6,6 +6,7 @@
   import { fetchDeck, fetchSets, DeckFetchError } from '../lib/swudb';
   import { sortDeck, toMarkdown, type SortedDeck } from '../lib/sort';
   import { validateDeck, validateTrilogy, type CardRef, type DeckValidation, type TrilogyValidation } from '../lib/validate';
+  import { diffDecks, diffToMarkdown, countNote, type DeckDiff } from '../lib/diff';
   import { cardImage, cardImageUrl, swudbImageUrl } from '../lib/cards';
   import { setMeta, type SetMeta } from '../lib/sets';
   import { SET_ORDER, SUB_SET_ORDER, setStatus, type SetStatus } from '../lib/legality';
@@ -56,7 +57,7 @@
     return n;
   }
 
-  type Mode = 'sort' | 'validate';
+  type Mode = 'sort' | 'validate' | 'diff';
   let mode = $state<Mode>('sort');
 
   // Motion: all animation respects prefers-reduced-motion (durations drop to 0
@@ -75,7 +76,9 @@
   // referencing cards). The toggle appears once the right pane has content —
   // and stays while expanded, so you can always get the form back.
   let expanded = $state(false);
-  const hasResults = $derived(mode === 'sort' ? !!sorted : !!trilogy);
+  const hasResults = $derived(
+    mode === 'sort' ? !!sorted : mode === 'validate' ? !!trilogy : !!deckDiff,
+  );
 
   // Hyperspace jump overlay: shown while a fetch is in flight, held for a
   // minimum beat so quick responses don't strobe the effect.
@@ -108,6 +111,14 @@
   let valError = $state('');
   let perDeck = $state<{ deck: NormalizedDeck; result: DeckValidation }[]>([]);
   let trilogy = $state<TrilogyValidation | null>(null);
+
+  // Diff form
+  let diffOldUrl = $state('');
+  let diffNewUrl = $state('');
+  let diffBusy = $state(false);
+  let diffError = $state('');
+  let deckDiff = $state<DeckDiff | null>(null);
+  let diffCopied = $state(false);
 
   // Card hover preview — follows the cursor, with a holographic tilt + glare
   // driven by smoothed cursor velocity (the card leans the way it's "dragged").
@@ -221,6 +232,34 @@
     }
   }
 
+  async function runDiff(e: Event) {
+    e.preventDefault();
+    diffError = '';
+    deckDiff = null;
+    diffCopied = false;
+    if (!diffOldUrl.trim() || !diffNewUrl.trim()) {
+      diffError = 'Enter both deck URLs.';
+      return;
+    }
+    diffBusy = true;
+    try {
+      const [oldDeck, newDeck] = await holdJump(() =>
+        Promise.all([loadDeck(diffOldUrl), loadDeck(diffNewUrl)]),
+      );
+      deckDiff = diffDecks(oldDeck, newDeck);
+    } catch (err) {
+      diffError = err instanceof Error ? err.message : String(err);
+    } finally {
+      diffBusy = false;
+    }
+  }
+
+  async function copyDiffMarkdown() {
+    if (!deckDiff) return;
+    await navigator.clipboard.writeText(diffToMarkdown(deckDiff));
+    diffCopied = true;
+  }
+
   async function copyMarkdown() {
     if (sorted) await navigator.clipboard.writeText(toMarkdown(sorted));
   }
@@ -278,6 +317,7 @@
   <section class="panel left">
     <div class="tabs">
       <button class:active={mode === 'sort'} onclick={() => (mode = 'sort')}>Sort deck</button>
+      <button class:active={mode === 'diff'} onclick={() => (mode = 'diff')}>Deck diff</button>
       <button class:active={mode === 'validate'} onclick={() => (mode = 'validate')}>Validate trilogy</button>
     </div>
 
@@ -288,7 +328,7 @@
         <button type="submit" disabled={sortBusy}>{sortBusy ? 'Loading…' : 'Sort by set'}</button>
         {#if sortError}<p class="error">{sortError}</p>{/if}
       </form>
-    {:else}
+    {:else if mode === 'validate'}
       <form onsubmit={runValidate}>
         {#each valUrls as _, i}
           <label for={`val-url-${i}`}>Deck {i + 1}</label>
@@ -296,6 +336,15 @@
         {/each}
         <button type="submit" disabled={valBusy}>{valBusy ? 'Validating…' : 'Validate trilogy'}</button>
         {#if valError}<p class="error">{valError}</p>{/if}
+      </form>
+    {:else}
+      <form onsubmit={runDiff}>
+        <label for="diff-old">Original deck</label>
+        <input id="diff-old" type="text" bind:value={diffOldUrl} placeholder="https://www.swudb.com/deck/..." />
+        <label for="diff-new">New deck</label>
+        <input id="diff-new" type="text" bind:value={diffNewUrl} placeholder="https://www.swudb.com/deck/..." />
+        <button type="submit" disabled={diffBusy}>{diffBusy ? 'Comparing…' : 'Compare decks'}</button>
+        {#if diffError}<p class="error">{diffError}</p>{/if}
       </form>
     {/if}
 
@@ -460,7 +509,7 @@
       {:else}
         <p class="muted">Enter a deck URL to generate a sorted list.</p>
       {/if}
-    {:else if trilogy}
+    {:else if mode === 'validate' && trilogy}
       {@const tv = trilogy}
       {@const trilogyPlay = playName(tv.format)}
       {@const invalidCount = tv.dupViolations.length + tv.copyViolations.length}
@@ -589,8 +638,78 @@
           </div>
         </section>
       {/if}
-    {:else}
+    {:else if mode === 'validate'}
       <p class="muted">Enter three deck URLs to validate a trilogy.</p>
+    {:else if deckDiff}
+      {@const dd = deckDiff}
+      <header class="deck-head" in:fly|global={{ y: 14, duration: DUR }}>
+        <h2>Deck diff</h2>
+        {#each [{ tag: 'Original', cls: 'old', deck: dd.oldDeck }, { tag: 'New', cls: 'new', deck: dd.newDeck }] as side}
+          <div class="diff-deck {side.cls}">
+            <div class="diff-name">
+              <span class="diff-tag {side.cls}">{side.tag}</span>
+              <a class="diff-title" href={side.deck.url} target="_blank" rel="noopener">{side.deck.title}</a>
+            </div>
+            <div class="deck-thumbs">
+              {#each [...side.deck.leaders, ...(side.deck.base ? [side.deck.base] : [])] as c}
+                <img
+                  class="mini" src={cardImage(c)} alt={c.cardName}
+                  onmouseenter={(e) => { preview = cardImage(c); movePreview(e); }}
+                  onmousemove={movePreview}
+                  onmouseleave={() => (preview = null)}
+                />
+              {/each}
+            </div>
+            <span class="aspects">
+              {#each deckAspects(side.deck) as a}
+                <img class="aspect-sm" src={`/aspects/${ASPECTS[a]?.cls}.webp`} title={ASPECTS[a]?.name} alt={ASPECTS[a]?.name} />
+              {/each}
+            </span>
+            <span class="diff-counts"><strong>{mainCount(side.deck)}</strong> cards · <strong>{sbCount(side.deck)}</strong> sideboard</span>
+          </div>
+        {/each}
+        {#if dd.sections.length}
+          <p class="diff-summary">
+            <span class="add">+{dd.added}</span> <span class="remove">−{dd.removed}</span>
+            <span class="muted-inline">cards across leaders, base, main deck and sideboard</span>
+          </p>
+        {:else}
+          <p class="deck-verdict ok">✓ No changes between decks</p>
+        {/if}
+        <button class="ghost" onclick={copyDiffMarkdown}>{diffCopied ? 'Copied ✓' : 'Copy as markdown'}</button>
+      </header>
+      {#each dd.sections as s, i}
+        <h3 class="diff-head" class:net={s.title.startsWith('Net')} in:fly|global={{ x: -18, duration: DUR, delay: staggerDelay(i) }}>
+          {s.title}
+          <span class="set-count">
+            {#if s.lines.some((l) => l.sign === '-')}<span class="remove">−{s.lines.filter((l) => l.sign === '-').reduce((n, l) => n + l.qty, 0)}</span>{/if}
+            {#if s.lines.some((l) => l.sign === '+')}<span class="add">+{s.lines.filter((l) => l.sign === '+').reduce((n, l) => n + l.qty, 0)}</span>{/if}
+          </span>
+        </h3>
+        {#if s.title.startsWith('Net')}
+          <p class="diff-hint">Physical cards to pull and add — cards that only move between main deck and sideboard cancel out.</p>
+        {/if}
+        <ul class="cards diff">
+          {#each s.lines as l, j}
+            {@const note = countNote(l)}
+            <li
+              class={l.sign === '+' ? 'add' : 'remove'}
+              in:fly|global={{ y: 10, duration: DUR, delay: staggerDelay(i, j + 1) }}
+              onmouseenter={(e) => { preview = cardImage(l.card); movePreview(e); }}
+              onmousemove={movePreview}
+              onmouseleave={() => (preview = null)}
+            >
+              <span class="sign">{l.sign === '+' ? '+' : '−'}</span>
+              <span class="qty">{l.qty}×</span>
+              <span class="num">{l.set} {l.number}</span>
+              <span class="name">{l.name}</span>
+              <span class="note">{note}</span>
+            </li>
+          {/each}
+        </ul>
+      {/each}
+    {:else}
+      <p class="muted">Enter an original and a new deck URL to see which cards to pull and which to add.</p>
     {/if}
 
     {#if preview}
@@ -825,6 +944,50 @@
   .deck-verdict.ok { color: var(--ok); }
   .deck-verdict.warn { color: var(--warn); }
   .deck-verdict.bad { color: var(--bad); }
+  /* Deck diff view: red = pull from the deck, green = add. */
+  .diff-deck {
+    display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap;
+    margin-top: 0.55rem; padding-left: 0.6rem; border-left: 3px solid var(--line);
+  }
+  .diff-deck.old { border-left-color: var(--bad); }
+  .diff-deck.new { border-left-color: var(--ok); }
+  /* Tag + title get their own line so both decks wrap the same way at any width. */
+  .diff-name { flex-basis: 100%; display: flex; align-items: baseline; gap: 0.6rem; min-width: 0; }
+  .diff-tag {
+    font-family: var(--font-display); font-weight: 700; font-size: 0.8rem;
+    text-transform: uppercase; letter-spacing: 0.08em; flex-shrink: 0;
+  }
+  .diff-tag.old { color: var(--bad); } .diff-tag.new { color: var(--ok); }
+  .diff-title { color: var(--text); font-weight: 600; text-decoration: none; }
+  .diff-title:hover { color: var(--gold); text-decoration: underline; }
+  .diff-counts { font-size: 0.8rem; color: var(--text-dim); }
+  .diff-counts strong { color: var(--text); font-variant-numeric: tabular-nums; }
+  .diff-summary {
+    margin: 0.75rem 0 0; display: flex; gap: 0.6rem; align-items: baseline; flex-wrap: wrap;
+    font-family: var(--font-display); font-weight: 700; font-size: 1.15rem; letter-spacing: 0.04em;
+  }
+  .muted-inline { font-family: var(--font-body); font-weight: 400; font-size: 0.8rem; color: var(--text-dim); letter-spacing: 0; }
+  .add { color: var(--ok); } .remove { color: var(--bad); }
+  .diff-head {
+    display: flex; align-items: center; gap: 0.6rem;
+    margin: 1.1rem 0 0.35rem; padding: 0.15rem 0 0.3rem 0.6rem;
+    border-left: 3px solid var(--line-bright); border-bottom: 1px solid var(--line);
+    font-family: var(--font-display); font-weight: 700; font-size: 1.15rem;
+    text-transform: uppercase; letter-spacing: 0.07em;
+  }
+  .diff-head.net { border-left-color: var(--gold-deep); margin-top: 1.6rem; }
+  .diff-head .set-count { display: inline-flex; gap: 0.6rem; }
+  .diff-hint { margin: 0 0 0.35rem; color: var(--text-faint); font-size: 0.75rem; }
+  ul.cards.diff li { grid-template-columns: 1rem 2.5rem 4.6rem 1fr auto; }
+  ul.cards.diff li.remove { background: rgba(240, 138, 138, 0.06); }
+  ul.cards.diff li.add { background: rgba(92, 209, 122, 0.06); }
+  ul.cards.diff li.remove:hover { background: rgba(240, 138, 138, 0.13); }
+  ul.cards.diff li.add:hover { background: rgba(92, 209, 122, 0.13); }
+  ul.cards.diff li + li { margin-top: 2px; }
+  .sign { font-weight: 700; text-align: center; }
+  li.remove .sign, li.remove .qty { color: var(--bad); }
+  li.add .sign, li.add .qty { color: var(--ok); }
+  .note { color: var(--text-faint); font-size: 0.8rem; font-variant-numeric: tabular-nums; }
   /* Holographic hover preview: the wrap owns position + perspective, the card
      tilts with smoothed cursor velocity, the glare tracks the tilt. */
   .preview-wrap {
