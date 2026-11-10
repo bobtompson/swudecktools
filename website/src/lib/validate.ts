@@ -1,7 +1,12 @@
 import type { NormalizedDeck, DeckCard, RawCard, SetInfo } from './types';
 import { detectFormat, type DeckFormat } from './normalize';
 import { extractAlignment, cardIdentity, formatCardName, padNumber } from './cards';
-import { PREMIER_SUSPENDED_CARDS, ETERNAL_BANNED_CARDS, setLegality } from './legality';
+import {
+  PREMIER_SUSPENDED_CARDS,
+  ETERNAL_BANNED_CARDS,
+  BASE_MIN_DECK_SIZE_MODIFIERS,
+  setLegality,
+} from './legality';
 
 export interface DeckValidation {
   format: DeckFormat;
@@ -60,6 +65,23 @@ function printingLabel(c: DeckCard): string {
   return `${c.name} (${c.set} ${c.number})`;
 }
 
+// Port of min_deck_size_reason: failure text when the main deck is under its
+// minimum size, else null. The minimum is the format's (50 constructed, 80
+// Twin Suns) adjusted by the base's text (Thermal Oscillator -5, Data Vault
+// +10). Decks may always go over the minimum.
+function minDeckSizeReason(
+  deck: NormalizedDeck,
+  formatMinimum: number,
+  label = 'Main deck',
+): string | null {
+  const count = deck.mainboard.reduce((n, c) => n + c.quantity, 0);
+  const baseName = (deck.base?.cardName ?? '').trim();
+  const minimum = formatMinimum + (BASE_MIN_DECK_SIZE_MODIFIERS[baseName] ?? 0);
+  if (count >= minimum) return null;
+  const baseNote = minimum !== formatMinimum ? ` (minimum is ${minimum} with ${baseName})` : '';
+  return `${label} must contain at least ${minimum} cards; found ${count}.${baseNote}`;
+}
+
 // Port of validate_constructed_structure (shared one-leader structure).
 function validateConstructedStructure(deck: NormalizedDeck, maxCopies: number): string[] {
   const reasons: string[] = [];
@@ -71,10 +93,8 @@ function validateConstructedStructure(deck: NormalizedDeck, maxCopies: number): 
     reasons.push('Expected exactly 1 base; found 0.');
   }
 
-  const mainCount = deck.mainboard.reduce((n, c) => n + c.quantity, 0);
-  if (mainCount < 50) {
-    reasons.push(`Main deck must contain at least 50 cards; found ${mainCount}.`);
-  }
+  const sizeReason = minDeckSizeReason(deck, 50);
+  if (sizeReason) reasons.push(sizeReason);
   const sbCount = deck.sideboard.reduce((n, c) => n + c.quantity, 0);
   if (sbCount > 10) {
     reasons.push(`Sideboard can contain at most 10 cards; found ${sbCount}.`);
@@ -117,6 +137,16 @@ export function validatePremier(
   const reasons = validateConstructedStructure(deck, 3);
   const notes: string[] = [];
 
+  // Leaders and bases live outside the main deck, so check them separately.
+  for (const c of [...deck.leaders, ...(deck.base ? [deck.base] : [])]) {
+    const name = formatCardName(c);
+    if (PREMIER_SUSPENDED_CARDS.has(name)) {
+      const set = (c.defaultExpansionAbbreviation ?? '?').toUpperCase();
+      const number = String(c.defaultCardNumber ?? '?').padStart(3, '0');
+      reasons.push(`${name} (${set} ${number}) is suspended in Premier.`);
+    }
+  }
+
   for (const entry of [...deck.mainboard, ...deck.sideboard]) {
     if (PREMIER_SUSPENDED_CARDS.has(entry.name)) {
       reasons.push(`${printingLabel(entry)} is suspended in Premier.`);
@@ -157,10 +187,8 @@ export function validateTwinSuns(deck: NormalizedDeck): DeckValidation {
     reasons.push('Twin Suns requires exactly 1 base; found 0.');
   }
 
-  const mainCount = deck.mainboard.reduce((n, c) => n + c.quantity, 0);
-  if (mainCount < 80) {
-    reasons.push(`Twin Suns main deck must contain at least 80 cards; found ${mainCount}.`);
-  }
+  const sizeReason = minDeckSizeReason(deck, 80, 'Twin Suns main deck');
+  if (sizeReason) reasons.push(sizeReason);
 
   if (deck.leaders.length === 2) {
     const alignments = deck.leaders.map(extractAlignment).filter((a) => a !== null);
@@ -186,7 +214,7 @@ export function validateTwinSuns(deck: NormalizedDeck): DeckValidation {
 }
 
 // Eternal: every released set is legal (incl. rotated sets and TS26), 3-copy
-// limit, but JTL 140 (IG-2000) and JTL 170 (War Juggernaut) are banned.
+// limit. ETERNAL_BANNED_CARDS is currently empty (no Eternal suspensions).
 export function validateEternal(deck: NormalizedDeck): DeckValidation {
   const reasons = validateConstructedStructure(deck, 3);
   for (const entry of [...deck.mainboard, ...deck.sideboard]) {
@@ -194,19 +222,33 @@ export function validateEternal(deck: NormalizedDeck): DeckValidation {
       reasons.push(`${printingLabel(entry)} is banned in Eternal.`);
     }
   }
+  // Explain why a deck built only from Premier-legal sets still isn't Premier.
+  const notes: string[] = [];
+  for (const c of [...deck.leaders, ...(deck.base ? [deck.base] : [])]) {
+    if (PREMIER_SUSPENDED_CARDS.has(formatCardName(c))) {
+      const [set, number] = cardIdentity(c);
+      notes.push(`Not Premier-legal: ${formatCardName(c)} (${set} ${number}) is suspended in Premier.`);
+    }
+  }
+  for (const entry of [...deck.mainboard, ...deck.sideboard]) {
+    if (PREMIER_SUSPENDED_CARDS.has(entry.name)) {
+      notes.push(`Not Premier-legal: ${printingLabel(entry)} is suspended in Premier.`);
+    }
+  }
   return {
     format: 'eternal',
     formatLabel: FORMAT_LABEL.eternal,
     valid: reasons.length === 0,
     reasons: dedupe(reasons),
-    notes: [],
+    notes: dedupe(notes),
   };
 }
 
 // A constructed deck is Premier only if every printing it uses (leaders, base,
 // main, side) is from a Premier-legal set or has a Premier-legal reprint by
-// full name. Otherwise — rotated sets (SOR/SHD/TWI) or TS26 cards — it's an
-// Eternal deck.
+// full name, and none of its cards is suspended in Premier. Otherwise —
+// rotated sets (SOR/SHD/TWI), TS26 cards, or Premier-suspended cards — it's
+// an Eternal deck, where all of those are legal.
 function isPremierLegalPool(
   deck: NormalizedDeck,
   catalog: SetInfo[],
@@ -225,13 +267,14 @@ function isPremierLegalPool(
   for (const c of [...deck.mainboard, ...deck.sideboard]) cards.push({ set: c.set, name: c.name });
   return cards.every(
     (c) =>
-      setLegality(c.set, catalog).premier ||
-      (reprintNames !== null && reprintNames.has(c.name.trim().toLowerCase())),
+      !PREMIER_SUSPENDED_CARDS.has(c.name) &&
+      (setLegality(c.set, catalog).premier ||
+        (reprintNames !== null && reprintNames.has(c.name.trim().toLowerCase()))),
   );
 }
 
 // A deck's format: Twin Suns (2 leaders), else Premier if the whole pool is
-// Premier-legal, else Eternal.
+// Premier-legal (sets and suspensions), else Eternal.
 export function classifyDeck(
   deck: NormalizedDeck,
   catalog: SetInfo[],

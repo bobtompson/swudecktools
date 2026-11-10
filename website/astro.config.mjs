@@ -11,6 +11,9 @@ const isDev = process.argv.includes('dev');
 
 export default defineConfig({
   output: 'static',
-  ...(isDev ? {} : { adapter: cloudflare() }),
+  // No sessions or image transforms here — turning both off keeps the adapter
+  // from adding SESSION (KV) and IMAGES bindings to the deployed worker.
+  session: false,
+  ...(isDev ? {} : { adapter: cloudflare({ imageService: 'passthrough' }) }),
   integrations: [svelte()],
 });

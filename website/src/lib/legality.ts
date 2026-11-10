@@ -1,17 +1,18 @@
 import type { SetInfo } from './types';
 
 // Port of constants in lib/swudb.py. Premier-legal sets span both main sets
-// (LOF, SEC, LAW, ASH, ...) and sub sets (IBH). Next rotation: JTL rotates
-// out when Legacy of Skywalker (set 10, first 2027 set) releases — the plan
-// appears to be rotating the oldest Premier-legal set annually.
-export const PREMIER_LEGAL_SETS = new Set(['JTL', 'LOF', 'IBH', 'SEC', 'LAW', 'ASH']);
+// (LOF, SEC, LAW, ASH, ...) and sub sets (IBH). Sets rotate a whole block at a
+// time — the block is the letter in the rotation symbol printed at the bottom
+// of each card: none = SOR/SHD/TWI (rotated), A = JTL/LOF/SEC, B =
+// IBH/LAW/ASH/HMW/IC27. Next rotation: block A rotates out when Legacy of
+// Skywalker (set 10, first 2027 set) releases.
+export const PREMIER_LEGAL_SETS = new Set(['JTL', 'LOF', 'IBH', 'SEC', 'LAW', 'ASH', 'HMW']);
 export const PREMIER_ROTATED_SETS = new Set(['SOR', 'SHD', 'TWI']);
 export const PREMIER_EXCLUDED_SETS = new Set(['TS26']);
-// HMW = "Homeworlds", the main set after ASH, releasing 10/9/26. IC27 =
-// "Icons 2027 Edition", an IBH-like Premier-legal supplemental set releasing
-// 11/21/26. Pending sets flip legal at release - 7 days, unless
+// IC27 = "Icons 2027 Edition", an IBH-like Premier-legal supplemental set
+// releasing 11/21/26. (HMW released 10/9/26 and moved to PREMIER_LEGAL_SETS.) Pending sets flip legal at release - 7 days, unless
 // PREMIER_LEGAL_DATE_OVERRIDES gives an explicit date.
-export const PREMIER_PENDING_SETS = new Set(['HMW', 'IC27']);
+export const PREMIER_PENDING_SETS = new Set(['IC27']);
 export const PRERELEASE_DAYS = 7;
 
 // Release-date overrides ("M/D/YY") for sets whose swu-db catalog date is
@@ -34,18 +35,64 @@ export const PREMIER_LEGAL_DATE_OVERRIDES: Record<string, string> = {
   IC27: '11/27/26',
 };
 
+// Bases whose text changes the minimum deck size (card name -> cards added to
+// the format minimum: 50 for Premier / Eternal, 80 for Twin Suns). Both are
+// JTL: Thermal Oscillator (025) "decreased by 5", Data Vault (024) "increased
+// by 10". There is no maximum deck size.
+export const BASE_MIN_DECK_SIZE_MODIFIERS: Record<string, number> = {
+  'Thermal Oscillator': -5,
+  'Data Vault': 10,
+};
+
+// Card-name suspensions in Premier ("Name - Subtitle" for uniques), checked
+// against leaders and bases as well as the main deck and sideboard. The older
+// SOR/SHD/TWI suspensions were dropped once those sets rotated out.
 export const PREMIER_SUSPENDED_CARDS = new Set([
-  'Boba Fett - Collecting the Bounty',
-  'Triple Dark Raid',
-  'Jango Fett - Concealing the Conspiracy',
-  'DJ - Blatant Thief',
-  'Force Throw',
+  // Suspended 8/2026 — the ASH 011 leader (other Cad Bane printings are legal).
+  'Cad Bane - Still Faster Than You',
+  // Suspended 11/9/26 (Premier Format Update: November 2026).
+  'Chimaera - A Frightening Reality', // ASH 052
+  'Koska Reeves - Warrior of Mandalore', // ASH 079
+  'Neel - The Cutest Boy', // ASH 248
+  'Aggressive Negotiations', // SEC 179
 ]);
 
-// Cards banned in Eternal only (they remain Premier-legal). Matched by card
-// name (lowercased) so any printing is caught. JTL 140 / JTL 170.
-// https://starwarsunlimited.com/how-to-play?chapter=rules
-export const ETERNAL_BANNED_CARDS = new Set(['ig-2000', 'war juggernaut']);
+// Cards banned in Eternal only, matched by card name (lowercased) so any
+// printing is caught. Currently empty: IG-2000 and War Juggernaut were
+// unbanned and Eternal has no suspensions.
+export const ETERNAL_BANNED_CARDS = new Set<string>();
+
+// True when a card (full "Name - Subtitle") is on a format's own suspension
+// list. Premier's list is by full name, Eternal's by base card name (any
+// printing); Twin Suns has none.
+export function isSuspendedIn(
+  format: 'premier' | 'eternal' | 'twinSuns' | null | undefined,
+  fullName: string,
+): boolean {
+  if (format === 'premier') return PREMIER_SUSPENDED_CARDS.has(fullName);
+  if (format === 'eternal') {
+    const lower = fullName.trim().toLowerCase();
+    return ETERNAL_BANNED_CARDS.has(lower) || ETERNAL_BANNED_CARDS.has(lower.split(' - ')[0]);
+  }
+  return false;
+}
+
+// Where a card is suspended, for the "Suspended" stamp shown on a deck of the
+// given format: 'Premier', 'Eternal', 'Premier · Eternal', or '' for none.
+// One-leader decks are Premier or Eternal depending on their card pool — a
+// Premier-suspended card is exactly what makes an otherwise Premier deck
+// Eternal — so they show both lists. Twin Suns (and unclassified) decks show
+// nothing: no suspension list applies there.
+export function suspendedWhere(
+  deckFormat: 'premier' | 'eternal' | 'twinSuns' | null | undefined,
+  fullName: string,
+): string {
+  if (deckFormat !== 'premier' && deckFormat !== 'eternal') return '';
+  const where: string[] = [];
+  if (isSuspendedIn('premier', fullName)) where.push('Premier');
+  if (isSuspendedIn('eternal', fullName)) where.push('Eternal');
+  return where.join(' · ');
+}
 
 // Display order for sorting output: main numbered sets ("set 1" SOR through
 // "set 9" HMW) first, then sub sets (supplemental products, release order),

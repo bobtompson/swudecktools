@@ -7,11 +7,12 @@
   import { sortDeck, toMarkdown, type SortedDeck } from '../lib/sort';
   import { validateDeck, validateTrilogy, type CardRef, type DeckValidation, type TrilogyValidation } from '../lib/validate';
   import { diffDecks, diffToMarkdown, countNote, type DeckDiff } from '../lib/diff';
-  import { cardImage, cardImageUrl, swudbImageUrl } from '../lib/cards';
+  import { cardImage, cardImageUrl, swudbImageUrl, formatCardName } from '../lib/cards';
   import { setMeta, type SetMeta } from '../lib/sets';
-  import { SET_ORDER, SUB_SET_ORDER, setStatus, type SetStatus } from '../lib/legality';
+  import { SET_ORDER, SUB_SET_ORDER, setStatus, suspendedWhere, type SetStatus } from '../lib/legality';
   import { fetchLocalIndex, buildPremierReprintNames, type LocalDataIndex } from '../lib/carddata';
   import type { NormalizedDeck, RawCard } from '../lib/types';
+  import type { DeckFormat } from '../lib/normalize';
 
   // Image for a violation ref (carries the payload image path when known).
   function refImg(v: CardRef): string {
@@ -118,11 +119,30 @@
   let diffBusy = $state(false);
   let diffError = $state('');
   let deckDiff = $state<DeckDiff | null>(null);
+  // Format of each diffed deck (null when it couldn't be classified).
+  let diffFormats = $state<{ old: Fmt; new: Fmt }>({ old: null, new: null });
   let diffCopied = $state(false);
 
   // Card hover preview — follows the cursor, with a holographic tilt + glare
   // driven by smoothed cursor velocity (the card leans the way it's "dragged").
   let preview = $state<string | null>(null);
+  // Format name ('Premier' / 'Eternal') when the previewed card is suspended in
+  // its deck's format, else ''.
+  let previewSuspended = $state('');
+
+  // "Suspended" stamp. stampLabel() returns where a card is suspended
+  // ('Premier', 'Eternal', 'Premier · Eternal') or '' for no stamp. Twin Suns
+  // decks never stamp; one-leader decks show both lists, because a
+  // Premier-suspended card is what makes an otherwise Premier deck Eternal.
+  type Fmt = DeckFormat | null | undefined;
+  function stampLabel(card: RawCard, format: Fmt): string {
+    return suspendedWhere(format, formatCardName(card));
+  }
+  function showPreview(e: MouseEvent, src: string, stamp = '') {
+    preview = src;
+    previewSuspended = stamp;
+    movePreview(e);
+  }
   let previewX = $state(0);
   let previewY = $state(0);
 
@@ -243,9 +263,18 @@
     }
     diffBusy = true;
     try {
-      const [oldDeck, newDeck] = await holdJump(() =>
-        Promise.all([loadDeck(diffOldUrl), loadDeck(diffNewUrl)]),
+      const [oldDeck, newDeck, catalog, reprints] = await holdJump(() =>
+        Promise.all([
+          loadDeck(diffOldUrl),
+          loadDeck(diffNewUrl),
+          fetchSets().catch(() => null),
+          buildPremierReprintNames().catch(() => null),
+        ]),
       );
+      // Each deck's own format decides which suspension list its cards use.
+      const fmt = (d: NormalizedDeck): Fmt =>
+        catalog === null ? null : validateDeck(d, catalog, reprints).format;
+      diffFormats = { old: fmt(oldDeck), new: fmt(newDeck) };
       deckDiff = diffDecks(oldDeck, newDeck);
     } catch (err) {
       diffError = err instanceof Error ? err.message : String(err);
@@ -416,22 +445,22 @@
           <div class="thumbs">
             {#each sorted.leaders as l}
               <figure
-                onmouseenter={(e) => { preview = cardImage(l); movePreview(e); }}
+                onmouseenter={(e) => showPreview(e, cardImage(l), stampLabel(l, sortValidation?.format))}
                 onmousemove={movePreview}
                 onmouseleave={() => (preview = null)}
               >
-                <img src={cardImage(l)} alt={l.cardName} />
+                <span class="card-frame"><img src={cardImage(l)} alt={l.cardName} />{#if stampLabel(l, sortValidation?.format)}{@const where = stampLabel(l, sortValidation?.format)}<span class="stamp" title={`Suspended in ${where}`}>Suspended<small>{where}</small></span>{/if}</span>
                 <figcaption>{l.cardName}{l.title ? ` – ${l.title}` : ''}</figcaption>
               </figure>
             {/each}
             {#if sorted.base}
               {@const base = sorted.base}
               <figure
-                onmouseenter={(e) => { preview = cardImage(base); movePreview(e); }}
+                onmouseenter={(e) => showPreview(e, cardImage(base), stampLabel(base, sortValidation?.format))}
                 onmousemove={movePreview}
                 onmouseleave={() => (preview = null)}
               >
-                <img src={cardImage(base)} alt={base.cardName} />
+                <span class="card-frame"><img src={cardImage(base)} alt={base.cardName} />{#if stampLabel(base, sortValidation?.format)}{@const where = stampLabel(base, sortValidation?.format)}<span class="stamp" title={`Suspended in ${where}`}>Suspended<small>{where}</small></span>{/if}</span>
                 <figcaption>{base.cardName}</figcaption>
               </figure>
             {/if}
@@ -467,6 +496,7 @@
               <p class="deck-verdict bad">✗ Invalid {dplay} deck</p>
               {#if val.reasons.length}<ul class="reasons">{#each val.reasons as r}<li>{r}</li>{/each}</ul>{/if}
             {/if}
+            {#if val.notes.length}<ul class="notes">{#each val.notes as n}<li>{n}</li>{/each}</ul>{/if}
           {/if}
           <button class="ghost" onclick={copyMarkdown}>Copy as markdown</button>
         </header>
@@ -488,13 +518,13 @@
             {#each s.cards as c, j}
               <li
                 in:fly|global={{ y: 10, duration: DUR, delay: staggerDelay(i, j + 1) }}
-                onmouseenter={(e) => { preview = cardImage(c.card); movePreview(e); }}
+                onmouseenter={(e) => showPreview(e, cardImage(c.card), stampLabel(c.card, sortValidation?.format))}
                 onmousemove={movePreview}
                 onmouseleave={() => (preview = null)}
               >
                 <span class="qty">{c.quantity}×</span>
                 <span class="num">{c.number}</span>
-                <span class="name">{c.name}</span>
+                <span class="name">{c.name}{#if stampLabel(c.card, sortValidation?.format)}{@const where = stampLabel(c.card, sortValidation?.format)}<span class="stamp-tag" title={`Suspended in ${where}`}>Suspended</span>{/if}</span>
                 <span class="row-aspects">
                   {#each c.card.aspects ?? [] as a}
                     {#if ASPECTS[a]}
@@ -545,21 +575,21 @@
           <div class="deck-info">
             <div class="deck-thumbs">
               {#each deck.leaders as l}
-                <img
+                <span class="card-frame mini-frame"><img
                   class="mini" src={cardImage(l)} alt={l.cardName}
-                  onmouseenter={(e) => { preview = cardImage(l); movePreview(e); }}
+                  onmouseenter={(e) => showPreview(e, cardImage(l), stampLabel(l, result.format))}
                   onmousemove={movePreview}
                   onmouseleave={() => (preview = null)}
-                />
+                />{#if stampLabel(l, result.format)}{@const where = stampLabel(l, result.format)}<span class="stamp" title={`Suspended in ${where}`}>Suspended<small>{where}</small></span>{/if}</span>
               {/each}
               {#if deck.base}
                 {@const base = deck.base}
-                <img
+                <span class="card-frame mini-frame"><img
                   class="mini" src={cardImage(base)} alt={base.cardName}
-                  onmouseenter={(e) => { preview = cardImage(base); movePreview(e); }}
+                  onmouseenter={(e) => showPreview(e, cardImage(base), stampLabel(base, result.format))}
                   onmousemove={movePreview}
                   onmouseleave={() => (preview = null)}
-                />
+                />{#if stampLabel(base, result.format)}{@const where = stampLabel(base, result.format)}<span class="stamp" title={`Suspended in ${where}`}>Suspended<small>{where}</small></span>{/if}</span>
               {/if}
             </div>
             <div class="deck-stats">
@@ -599,11 +629,11 @@
               <div
                 class="vcard"
                 in:fly|global={{ y: 10, duration: DUR, delay: staggerDelay(3, vi + 1) }}
-                onmouseenter={(e) => { preview = refImg(v); movePreview(e); }}
+                onmouseenter={(e) => showPreview(e, refImg(v), suspendedWhere(trilogy.format, v.name))}
                 onmousemove={movePreview}
                 onmouseleave={() => (preview = null)}
               >
-                <img class="vthumb" src={refImg(v)} alt={v.name} />
+                <span class="card-frame vthumb-frame"><img class="vthumb" src={refImg(v)} alt={v.name} />{#if suspendedWhere(trilogy.format, v.name)}{@const where = suspendedWhere(trilogy.format, v.name)}<span class="stamp" title={`Suspended in ${where}`}>Suspended<small>{where}</small></span>{/if}</span>
                 <div class="vbody">
                   <span class="vname">{v.name}</span>
                   <span class="vmeta">{v.set} {v.number}</span>
@@ -618,11 +648,11 @@
               <div
                 class="vcard"
                 in:fly|global={{ y: 10, duration: DUR, delay: staggerDelay(3, trilogy.dupViolations.length + vi + 1) }}
-                onmouseenter={(e) => { preview = refImg(v); movePreview(e); }}
+                onmouseenter={(e) => showPreview(e, refImg(v), suspendedWhere(trilogy.format, v.name))}
                 onmousemove={movePreview}
                 onmouseleave={() => (preview = null)}
               >
-                <img class="vthumb" src={refImg(v)} alt={v.name} />
+                <span class="card-frame vthumb-frame"><img class="vthumb" src={refImg(v)} alt={v.name} />{#if suspendedWhere(trilogy.format, v.name)}{@const where = suspendedWhere(trilogy.format, v.name)}<span class="stamp" title={`Suspended in ${where}`}>Suspended<small>{where}</small></span>{/if}</span>
                 <div class="vbody">
                   <span class="vname">{v.name}</span>
                   <span class="vmeta">{v.set} {v.number}</span>
@@ -644,7 +674,7 @@
       {@const dd = deckDiff}
       <header class="deck-head" in:fly|global={{ y: 14, duration: DUR }}>
         <h2>Deck diff</h2>
-        {#each [{ tag: 'Original', cls: 'old', deck: dd.oldDeck }, { tag: 'New', cls: 'new', deck: dd.newDeck }] as side}
+        {#each [{ tag: 'Original', cls: 'old' as const, deck: dd.oldDeck }, { tag: 'New', cls: 'new' as const, deck: dd.newDeck }] as side}
           <div class="diff-deck {side.cls}">
             <div class="diff-name">
               <span class="diff-tag {side.cls}">{side.tag}</span>
@@ -652,12 +682,12 @@
             </div>
             <div class="deck-thumbs">
               {#each [...side.deck.leaders, ...(side.deck.base ? [side.deck.base] : [])] as c}
-                <img
+                <span class="card-frame mini-frame"><img
                   class="mini" src={cardImage(c)} alt={c.cardName}
-                  onmouseenter={(e) => { preview = cardImage(c); movePreview(e); }}
+                  onmouseenter={(e) => showPreview(e, cardImage(c), stampLabel(c, diffFormats[side.cls]))}
                   onmousemove={movePreview}
                   onmouseleave={() => (preview = null)}
-                />
+                />{#if stampLabel(c, diffFormats[side.cls])}{@const where = stampLabel(c, diffFormats[side.cls])}<span class="stamp" title={`Suspended in ${where}`}>Suspended<small>{where}</small></span>{/if}</span>
               {/each}
             </div>
             <span class="aspects">
@@ -695,14 +725,14 @@
             <li
               class={l.sign === '+' ? 'add' : 'remove'}
               in:fly|global={{ y: 10, duration: DUR, delay: staggerDelay(i, j + 1) }}
-              onmouseenter={(e) => { preview = cardImage(l.card); movePreview(e); }}
+              onmouseenter={(e) => showPreview(e, cardImage(l.card), stampLabel(l.card, l.sign === '+' ? diffFormats.new : diffFormats.old))}
               onmousemove={movePreview}
               onmouseleave={() => (preview = null)}
             >
               <span class="sign">{l.sign === '+' ? '+' : '−'}</span>
               <span class="qty">{l.qty}×</span>
               <span class="num">{l.set} {l.number}</span>
-              <span class="name">{l.name}</span>
+              <span class="name">{l.name}{#if stampLabel(l.card, l.sign === '+' ? diffFormats.new : diffFormats.old)}{@const where = stampLabel(l.card, l.sign === '+' ? diffFormats.new : diffFormats.old)}<span class="stamp-tag" title={`Suspended in ${where}`}>Suspended</span>{/if}</span>
               <span class="note">{note}</span>
             </li>
           {/each}
@@ -723,6 +753,7 @@
           style={`transform: rotateX(${tilt.current.x}deg) rotateY(${tilt.current.y}deg); --gx: ${50 + tilt.current.y * 3.5}%; --gy: ${50 - tilt.current.x * 3.5}%;`}
         >
           <img src={preview} alt="card preview" />
+          {#if previewSuspended}<span class="stamp stamp-lg">Suspended<small>{previewSuspended}</small></span>{/if}
           <div class="glare"></div>
         </div>
       </div>
@@ -1001,6 +1032,47 @@
     will-change: transform;
   }
   .preview-card img { width: 100%; display: block; }
+
+  /* "Suspended" rubber stamp over a card image (Premier-suspended cards).
+     Sized in em off --stamp-size so one rule serves every thumbnail size. */
+  .card-frame { position: relative; display: block; }
+  .mini-frame { display: inline-block; line-height: 0; --stamp-size: 7px; }
+  .vthumb-frame { flex-shrink: 0; line-height: 0; --stamp-size: 7px; }
+  .stamp {
+    position: absolute; left: 50%; top: 38%; z-index: 1;
+    transform: translate(-50%, -50%) rotate(-12deg);
+    font-family: var(--font-display); font-weight: 700; font-size: var(--stamp-size, 19px);
+    line-height: 1; letter-spacing: 0.08em; text-transform: uppercase; white-space: nowrap;
+    color: #d0222a; background: rgba(255, 255, 255, 0.86);
+    padding: 0.3em 0.45em 0.26em;
+    border: 0.12em solid currentColor; border-radius: 0.16em;
+    box-shadow:
+      inset 0 0 0 0.09em rgba(255, 255, 255, 0.86),
+      inset 0 0 0 0.16em currentColor,
+      0 0.1em 0.5em rgba(0, 0, 0, 0.45);
+    pointer-events: none; user-select: none;
+    display: flex; flex-direction: column; align-items: center;
+  }
+  /* Format the card is suspended in ("Premier" / "Eternal"), under the word. */
+  .stamp small {
+    font-size: 0.4em; font-weight: 600; letter-spacing: 0.22em; margin-top: 0.28em;
+  }
+  /* Too small to read on the mini thumbnails. */
+  .mini-frame .stamp small, .vthumb-frame .stamp small { display: none; }
+  /* Hover preview: see-through, so the card text underneath stays readable. */
+  .stamp-lg {
+    --stamp-size: 40px;
+    color: rgba(208, 34, 42, 0.62); background: rgba(255, 255, 255, 0.12);
+    box-shadow: inset 0 0 0 0.09em rgba(255, 255, 255, 0.12), inset 0 0 0 0.16em currentColor;
+  }
+  /* Text-row version: a small red tag after the card name. */
+  .stamp-tag {
+    display: inline-block; margin-left: 0.5em; vertical-align: 0.08em;
+    font-family: var(--font-display); font-weight: 700; font-size: 0.68em;
+    line-height: 1; letter-spacing: 0.08em; text-transform: uppercase;
+    color: #ff6b6b; border: 1px solid currentColor; border-radius: 3px;
+    padding: 0.18em 0.4em 0.12em; transform: rotate(-3deg);
+  }
   .glare {
     position: absolute; inset: 0; pointer-events: none;
     background: radial-gradient(
@@ -1014,7 +1086,7 @@
 
   @media (max-width: 900px) {
     .layout { grid-template-columns: 1fr; }
-    .thumbs figure { width: 112px; }
+    .thumbs figure { width: 112px; --stamp-size: 15px; }
     /* Stacked layout: the column animation doesn't apply, just remove the row. */
     .layout.expanded { grid-template-columns: 1fr; }
     .layout.expanded .left { display: none; }

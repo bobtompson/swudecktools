@@ -22,12 +22,12 @@ Sort + Trilogy validator both functional, with Premier / Eternal / Twin Suns for
       likely `IC28`), **Galaxy at War**. When codes are announced, follow the HMW
       checklist below (main sets go in `SET_ORDER` / Python `MAIN_SETS`; sub sets like
       Icons go in `SUB_SET_ORDER` / Python `SUB_SETS`).
-- [ ] **JTL rotation** — announced at Worlds 2026: JTL rotates out of Premier when
-      Legacy of Skywalker releases (first 2027 set). Move `JTL` from
-      `PREMIER_LEGAL_SETS` to `PREMIER_ROTATED_SETS` in `legality.ts` and
-      `swu-tools/lib/swudb.py`. Expect this annually: oldest Premier-legal set rotates
-      with each year's first release. (Also re-check the `ETERNAL_BANNED_CARDS` JTL
-      entries still make sense once JTL is Eternal-only in Premier terms.)
+- [ ] **Block A rotation** — sets rotate a whole block at a time (the letter in the
+      rotation symbol at the bottom of each card: none = SOR/SHD/TWI, A = JTL/LOF/SEC,
+      B = IBH/LAW/ASH/HMW/IC27). Block A rotates out of Premier when Legacy of Skywalker
+      releases (first 2027 set). Move `JTL`, `LOF`, `SEC` from `PREMIER_LEGAL_SETS` to
+      `PREMIER_ROTATED_SETS` in `legality.ts` and `swu-tools/lib/swudb.py`; any still-active
+      suspensions on those sets' cards (Aggressive Negotiations, SEC 179) can be dropped then.
 - [ ] **Twin Suns companion decks from set 10 on** — every main set release ships with
       two Twin Suns decks, following the TS26 model: the sub set code holds only the
       new Twin Suns-exclusive cards, and the rest of each deck is reprints carrying
