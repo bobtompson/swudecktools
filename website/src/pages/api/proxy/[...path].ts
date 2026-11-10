@@ -1,8 +1,8 @@
 import type { APIRoute } from 'astro';
 
 // Same-origin reverse proxy for the SWUDB and SWU Forge upstreams (they send no CORS
-// headers, so the browser can't call them directly). Runs as a Cloudflare Pages
-// Function in production and in-process under `astro dev`.
+// headers, so the browser can't call them directly). Runs in the Cloudflare
+// Worker in production and in-process under `astro dev`.
 export const prerender = false;
 
 // Strict whitelist. Only these four shapes are forwarded.

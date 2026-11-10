@@ -38,9 +38,9 @@ result renders on the right. All deck logic runs in the browser off a single dec
 
 - **[Astro](https://astro.build)** static site with a **Svelte** island for the interactive panel
   (`website/src/components/DeckTools.svelte`).
-- **Cloudflare Pages** for hosting. The one server-side piece is a small reverse proxy
-  (`website/src/pages/api/proxy/[...path].ts`) — needed because the SWUDB APIs send no CORS
-  headers, so the browser can't call them directly. It deploys as a Cloudflare Pages Function
+- **Cloudflare Workers** for hosting. The one server-side piece is a small reverse proxy
+  (`website/src/pages/api/proxy/[...path].ts`) — needed because the SWUDB and SWU Forge APIs send no CORS
+  headers, so the browser can't call them directly. It deploys as part of the Worker
   via `@astrojs/cloudflare`.
 
 ## How it works

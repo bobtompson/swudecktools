@@ -1,5 +1,5 @@
 # Local development image. Runs the Astro dev server (which also serves the
-# proxy endpoint in-process). Production deploys to Cloudflare Pages, not this image.
+# proxy endpoint in-process). Production deploys to Cloudflare Workers, not this image.
 FROM node:22-alpine
 
 WORKDIR /app
