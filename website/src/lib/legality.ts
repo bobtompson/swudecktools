@@ -44,6 +44,13 @@ export const BASE_MIN_DECK_SIZE_MODIFIERS: Record<string, number> = {
   'Data Vault': 10,
 };
 
+// Minimum main-deck sizes per format, before any base adjustment. Limited
+// (draft / sealed) decks are built from 3-8 opened booster packs: a smaller
+// minimum, every card legal, and no limit on copies of a card.
+export const LIMITED_MIN_DECK_SIZE = 30;
+export const CONSTRUCTED_MIN_DECK_SIZE = 50;
+export const TWIN_SUNS_MIN_DECK_SIZE = 80;
+
 // Card-name suspensions in Premier ("Name - Subtitle" for uniques), checked
 // against leaders and bases as well as the main deck and sideboard. The older
 // SOR/SHD/TWI suspensions were dropped once those sets rotated out.
@@ -66,7 +73,7 @@ export const ETERNAL_BANNED_CARDS = new Set<string>();
 // list. Premier's list is by full name, Eternal's by base card name (any
 // printing); Twin Suns has none.
 export function isSuspendedIn(
-  format: 'premier' | 'eternal' | 'twinSuns' | null | undefined,
+  format: 'premier' | 'eternal' | 'twinSuns' | 'limited' | null | undefined,
   fullName: string,
 ): boolean {
   if (format === 'premier') return PREMIER_SUSPENDED_CARDS.has(fullName);
@@ -81,10 +88,10 @@ export function isSuspendedIn(
 // given format: 'Premier', 'Eternal', 'Premier · Eternal', or '' for none.
 // One-leader decks are Premier or Eternal depending on their card pool — a
 // Premier-suspended card is exactly what makes an otherwise Premier deck
-// Eternal — so they show both lists. Twin Suns (and unclassified) decks show
-// nothing: no suspension list applies there.
+// Eternal — so they show both lists. Twin Suns, Limited and unclassified decks
+// show nothing: no suspension list applies there.
 export function suspendedWhere(
-  deckFormat: 'premier' | 'eternal' | 'twinSuns' | null | undefined,
+  deckFormat: 'premier' | 'eternal' | 'twinSuns' | 'limited' | null | undefined,
   fullName: string,
 ): string {
   if (deckFormat !== 'premier' && deckFormat !== 'eternal') return '';

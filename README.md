@@ -9,12 +9,14 @@ result renders on the right. All deck logic runs in the browser off a single dec
 
 ## Features
 
+- **Deck sources:** paste a SWUDB (`swudb.com/deck/{id}`) or SWU Forge (`swuforge.com/decks/{id}`) deck link in any field; the two can be mixed in a diff or trilogy. SWU Forge decks come from its export endpoint via the proxy and are filled in from the local card data (`src/lib/swuforge.ts`), so the deck must have link sharing on and its sets must be exported to `public/data/`.
 - **Sort:** cards grouped/ordered by set, leader + base thumbnails, deck aspect icons, and a
   copy-as-markdown action.
 - **Formats:** a constructed deck is classified **Premier** if its whole card pool is from
   Premier-legal sets (set 4+ / JTL onward), otherwise **Eternal** (uses rotated SOR/SHD/TWI or
   TS26 cards). Eternal allows everything (no bans). A deck built only from Premier-legal sets that runs a Premier-suspended card (the Cad Bane ASH 011 leader, Chimaera, Koska Reeves, Neel, Aggressive Negotiations) is classified **Eternal** — it is legal there — with a note naming each card that keeps it out of Premier. Those cards get a red **Suspended** stamp over their card image (leader/base thumbnails and the see-through hover preview) and a small tag in the list rows; the stamp's subtext names the format that suspends the card (Premier, Eternal, or both). Twin Suns decks are never stamped. In a deck diff each deck uses its own format.
   Two-leader decks are **Twin Suns**.
+  **Limited** (draft / sealed) decks are recognized when SWU Forge marks the deck Limited, or when a one-leader deck has 30–49 cards: 30-card minimum, every card legal, no copy limit, no suspension stamps. Limited decks can't be part of a trilogy.
   Minimum deck sizes (50 for Premier / Eternal, 80 for Twin Suns; no maximum) are adjusted by two JTL bases: **Thermal Oscillator** lowers the minimum by 5 and **Data Vault** raises it by 10 (`BASE_MIN_DECK_SIZE_MODIFIERS` in `legality.ts`).
 - **Validate trilogy:** overall verdict ("Valid for Premier Play"), per-deck summaries with
   aspect icons + card/sideboard counts + a contextual verdict, and an invalid-cards section

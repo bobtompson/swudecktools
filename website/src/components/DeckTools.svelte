@@ -47,6 +47,7 @@
 
   // Human label for a deck format.
   function playName(f: string): string {
+    if (f === 'limited') return 'Limited';
     return f === 'twinSuns' ? 'Twin Suns' : f === 'eternal' ? 'Eternal' : 'Premier';
   }
 
@@ -193,7 +194,7 @@
 
   async function loadDeck(input: string): Promise<NormalizedDeck> {
     const id = parseDeckUrl(input);
-    if (!id) throw new DeckFetchError(`"${input}" is not a valid SWUDB deck URL or id.`);
+    if (!id) throw new DeckFetchError(`"${input}" is not a valid SWUDB or SWU Forge deck URL or id.`);
     return normalizeDeck(await fetchDeck(id));
   }
 
@@ -353,7 +354,7 @@
     {#if mode === 'sort'}
       <form onsubmit={runSort}>
         <label for="sort-url">Deck URL</label>
-        <input id="sort-url" type="text" bind:value={sortUrl} placeholder="https://www.swudb.com/deck/..." />
+        <input id="sort-url" type="text" bind:value={sortUrl} placeholder="swudb.com/deck/… or swuforge.com/decks/…" />
         <button type="submit" disabled={sortBusy}>{sortBusy ? 'Loading…' : 'Sort by set'}</button>
         {#if sortError}<p class="error">{sortError}</p>{/if}
       </form>
@@ -361,7 +362,7 @@
       <form onsubmit={runValidate}>
         {#each valUrls as _, i}
           <label for={`val-url-${i}`}>Deck {i + 1}</label>
-          <input id={`val-url-${i}`} type="text" bind:value={valUrls[i]} placeholder="https://www.swudb.com/deck/..." />
+          <input id={`val-url-${i}`} type="text" bind:value={valUrls[i]} placeholder="swudb.com/deck/… or swuforge.com/decks/…" />
         {/each}
         <button type="submit" disabled={valBusy}>{valBusy ? 'Validating…' : 'Validate trilogy'}</button>
         {#if valError}<p class="error">{valError}</p>{/if}
@@ -369,9 +370,9 @@
     {:else}
       <form onsubmit={runDiff}>
         <label for="diff-old">Original deck</label>
-        <input id="diff-old" type="text" bind:value={diffOldUrl} placeholder="https://www.swudb.com/deck/..." />
+        <input id="diff-old" type="text" bind:value={diffOldUrl} placeholder="swudb.com/deck/… or swuforge.com/decks/…" />
         <label for="diff-new">New deck</label>
-        <input id="diff-new" type="text" bind:value={diffNewUrl} placeholder="https://www.swudb.com/deck/..." />
+        <input id="diff-new" type="text" bind:value={diffNewUrl} placeholder="swudb.com/deck/… or swuforge.com/decks/…" />
         <button type="submit" disabled={diffBusy}>{diffBusy ? 'Comparing…' : 'Compare decks'}</button>
         {#if diffError}<p class="error">{diffError}</p>{/if}
       </form>
@@ -970,6 +971,7 @@
   .format-badge.premier { background: var(--fmt-premier); }
   .format-badge.eternal { background: var(--fmt-eternal); }
   .format-badge.twinSuns { background: var(--fmt-twinsuns); }
+  .format-badge.limited { background: var(--fmt-limited); }
   .fmt-icon { flex-shrink: 0; }
   .deck-verdict { margin: 0.5rem 0 0; font-weight: 600; font-size: 0.85rem; }
   .deck-verdict.ok { color: var(--ok); }

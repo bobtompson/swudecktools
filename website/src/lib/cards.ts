@@ -3,10 +3,16 @@ import type { RawCard } from './types';
 // Card images are served (CORS-free for <img>) at a predictable path derived
 // from the set abbreviation and 3-digit card number. Caveat: cdn.swu-db.com
 // stores supplemental sets (TS26, IBH) under UNPADDED filenames (20.png, not
-// 020.png), so this padded construction 403s for them — it's only the fallback
-// when the deck payload carries no defaultImagePath.
+// 020.png), so those two are built unpadded. This is the fallback for cards
+// whose deck payload carries no defaultImagePath.
+const UNPADDED_IMAGE_SETS = new Set(['TS26', 'IBH']);
+
 export function cardImageUrl(set: string, number: string): string {
-  return `https://cdn.swu-db.com/images/cards/${set.toUpperCase()}/${padNumber(number)}.png`;
+  const code = set.toUpperCase();
+  const file = UNPADDED_IMAGE_SETS.has(code)
+    ? String(number).trim().replace(/^0+(?=\d)/, '')
+    : padNumber(number);
+  return `https://cdn.swu-db.com/images/cards/${code}/${file}.png`;
 }
 
 // swudb.com serves every printing at /images + defaultImagePath. The payload

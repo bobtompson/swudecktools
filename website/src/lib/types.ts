@@ -2,7 +2,7 @@
 // Only the fields we consume are typed; the payload carries more.
 
 export interface RawCard {
-  cardId: number;
+  cardId?: number; // absent for SWU Forge decks (cards are matched by name)
   cardName: string;
   title?: string | null;
   cost?: number | null;
@@ -26,9 +26,13 @@ export interface RawDeckEntry {
 
 export interface RawDeck {
   deckId?: string;
+  deckUrl?: string; // set for non-SWUDB sources (SWU Forge)
   deckName?: string;
   authorName?: string;
   deckFormat?: number; // 1 = Premier-style, 2 = Twin Suns
+  // Format the deck's owner picked, when the source says (SWU Forge):
+  // 'premier' | 'eternal' | 'twinSuns' | 'limited'.
+  declaredFormat?: string | null;
   leader?: RawCard | null;
   secondLeader?: RawCard | null;
   base?: RawCard | null;
@@ -51,6 +55,7 @@ export interface NormalizedDeck {
   author: string;
   url: string;
   formatCode: number | undefined;
+  declaredFormat?: string | null; // see RawDeck.declaredFormat
   leaders: RawCard[];
   base: RawCard | null;
   mainboard: DeckCard[];

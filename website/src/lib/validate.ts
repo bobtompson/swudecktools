@@ -5,6 +5,9 @@ import {
   PREMIER_SUSPENDED_CARDS,
   ETERNAL_BANNED_CARDS,
   BASE_MIN_DECK_SIZE_MODIFIERS,
+  LIMITED_MIN_DECK_SIZE,
+  CONSTRUCTED_MIN_DECK_SIZE,
+  TWIN_SUNS_MIN_DECK_SIZE,
   setLegality,
 } from './legality';
 
@@ -51,6 +54,7 @@ const FORMAT_LABEL: Record<DeckFormat, string> = {
   premier: 'Premier-style constructed',
   eternal: 'Eternal',
   twinSuns: 'Twin Suns',
+  limited: 'Limited',
 };
 
 function dedupe(reasons: string[]): string[] {
@@ -65,6 +69,29 @@ function printingLabel(c: DeckCard): string {
   return `${c.name} (${c.set} ${c.number})`;
 }
 
+function mainDeckCount(deck: NormalizedDeck): number {
+  return deck.mainboard.reduce((n, c) => n + c.quantity, 0);
+}
+
+// Port of min_deck_size: the format minimum adjusted by the base's text.
+function minDeckSize(deck: NormalizedDeck, formatMinimum: number): number {
+  const baseName = (deck.base?.cardName ?? '').trim();
+  return formatMinimum + (BASE_MIN_DECK_SIZE_MODIFIERS[baseName] ?? 0);
+}
+
+// Port of is_limited: a source that states the format decides it (SWU Forge).
+// Otherwise it is inferred — a one-leader deck too small for constructed but
+// big enough for Limited can only be a Limited deck.
+export function isLimited(deck: NormalizedDeck): boolean {
+  if (deck.declaredFormat) return deck.declaredFormat === 'limited';
+  if (deck.leaders.length !== 1) return false;
+  const count = mainDeckCount(deck);
+  return (
+    count >= minDeckSize(deck, LIMITED_MIN_DECK_SIZE) &&
+    count < minDeckSize(deck, CONSTRUCTED_MIN_DECK_SIZE)
+  );
+}
+
 // Port of min_deck_size_reason: failure text when the main deck is under its
 // minimum size, else null. The minimum is the format's (50 constructed, 80
 // Twin Suns) adjusted by the base's text (Thermal Oscillator -5, Data Vault
@@ -74,9 +101,9 @@ function minDeckSizeReason(
   formatMinimum: number,
   label = 'Main deck',
 ): string | null {
-  const count = deck.mainboard.reduce((n, c) => n + c.quantity, 0);
+  const count = mainDeckCount(deck);
   const baseName = (deck.base?.cardName ?? '').trim();
-  const minimum = formatMinimum + (BASE_MIN_DECK_SIZE_MODIFIERS[baseName] ?? 0);
+  const minimum = minDeckSize(deck, formatMinimum);
   if (count >= minimum) return null;
   const baseNote = minimum !== formatMinimum ? ` (minimum is ${minimum} with ${baseName})` : '';
   return `${label} must contain at least ${minimum} cards; found ${count}.${baseNote}`;
@@ -93,7 +120,7 @@ function validateConstructedStructure(deck: NormalizedDeck, maxCopies: number): 
     reasons.push('Expected exactly 1 base; found 0.');
   }
 
-  const sizeReason = minDeckSizeReason(deck, 50);
+  const sizeReason = minDeckSizeReason(deck, CONSTRUCTED_MIN_DECK_SIZE);
   if (sizeReason) reasons.push(sizeReason);
   const sbCount = deck.sideboard.reduce((n, c) => n + c.quantity, 0);
   if (sbCount > 10) {
@@ -187,7 +214,7 @@ export function validateTwinSuns(deck: NormalizedDeck): DeckValidation {
     reasons.push('Twin Suns requires exactly 1 base; found 0.');
   }
 
-  const sizeReason = minDeckSizeReason(deck, 80, 'Twin Suns main deck');
+  const sizeReason = minDeckSizeReason(deck, TWIN_SUNS_MIN_DECK_SIZE, 'Twin Suns main deck');
   if (sizeReason) reasons.push(sizeReason);
 
   if (deck.leaders.length === 2) {
@@ -207,6 +234,29 @@ export function validateTwinSuns(deck: NormalizedDeck): DeckValidation {
   return {
     format: 'twinSuns',
     formatLabel: FORMAT_LABEL.twinSuns,
+    valid: reasons.length === 0,
+    reasons: dedupe(reasons),
+    notes: [],
+  };
+}
+
+// Port of validate_limited. Limited (draft / sealed): 1 leader, 1 base, a
+// 30-card minimum main deck (adjusted by the base like any other format).
+// Every card is legal — no rotation, no suspensions — and there is no limit on
+// copies of a card or on sideboard size, since the pool is what was opened.
+export function validateLimited(deck: NormalizedDeck): DeckValidation {
+  const reasons: string[] = [];
+  if (deck.leaders.length !== 1) {
+    reasons.push(`Expected exactly 1 leader; found ${deck.leaders.length}.`);
+  }
+  if (deck.base === null) {
+    reasons.push('Expected exactly 1 base; found 0.');
+  }
+  const sizeReason = minDeckSizeReason(deck, LIMITED_MIN_DECK_SIZE);
+  if (sizeReason) reasons.push(sizeReason);
+  return {
+    format: 'limited',
+    formatLabel: FORMAT_LABEL.limited,
     valid: reasons.length === 0,
     reasons: dedupe(reasons),
     notes: [],
@@ -273,13 +323,15 @@ function isPremierLegalPool(
   );
 }
 
-// A deck's format: Twin Suns (2 leaders), else Premier if the whole pool is
+// A deck's format: Limited (declared, or too small for constructed), Twin
+// Suns (2 leaders), else Premier if the whole pool is
 // Premier-legal (sets and suspensions), else Eternal.
 export function classifyDeck(
   deck: NormalizedDeck,
   catalog: SetInfo[],
   reprintNames: Set<string> | null = null,
 ): DeckFormat {
+  if (isLimited(deck)) return 'limited';
   if (detectFormat(deck) === 'twinSuns') return 'twinSuns';
   return isPremierLegalPool(deck, catalog, reprintNames) ? 'premier' : 'eternal';
 }
@@ -293,6 +345,7 @@ export function validateDeckAs(
   catalog: SetInfo[],
   reprintNames: Set<string> | null = null,
 ): DeckValidation {
+  if (format === 'limited') return validateLimited(deck);
   if (format === 'twinSuns') return validateTwinSuns(deck);
   if (format === 'eternal') return validateEternal(deck);
   return validatePremier(deck, catalog, reprintNames);
@@ -369,6 +422,7 @@ const TRILOGY_LABEL: Record<DeckFormat, string> = {
   premier: 'Premier Trilogy',
   eternal: 'Eternal Trilogy',
   twinSuns: 'Twin Suns Trilogy',
+  limited: 'Invalid Trilogy',
 };
 
 // Validate exactly three decks as a Trilogy.
@@ -386,6 +440,26 @@ export function validateTrilogy(
 ): TrilogyValidation {
   const formats = decks.map((d) => classifyDeck(d, catalog, reprintNames));
   const twinCount = formats.filter((f) => f === 'twinSuns').length;
+
+  // Limited (draft / sealed) decks are never part of a trilogy. Show each deck
+  // under its own format so it's clear which one is the Limited deck.
+  if (formats.includes('limited')) {
+    return {
+      format: 'limited',
+      formatLabel: TRILOGY_LABEL.limited,
+      valid: false,
+      copyViolations: [],
+      dupViolations: [],
+      formatReasons: [
+        'Limited (draft / sealed) decks cannot be used in a Trilogy. ' +
+          'All three decks must be Premier / Eternal, or all three Twin Suns.',
+      ],
+      perDeck: decks.map((deck, i) => ({
+        deck,
+        result: validateDeckAs(deck, formats[i], catalog, reprintNames),
+      })),
+    };
+  }
 
   // Twin Suns may not be combined with Premier/Eternal. Show each deck under its
   // own format so the mismatch is visible.

@@ -1,12 +1,47 @@
 import type { RawDeck, SetInfo } from './types';
+import { SWUFORGE_PREFIX } from './normalize';
+import { forgeExportToRawDeck, parseDeclaredFormat, type ForgeExport } from './swuforge';
 
-// All upstream SWUDB calls go through our same-origin proxy (/api/proxy/*),
-// because neither swudb.com nor api.swu-db.com sends CORS headers.
+// All upstream deck / set calls go through our same-origin proxy
+// (/api/proxy/*), because swudb.com, api.swu-db.com and swuforge.com send no
+// CORS headers.
 const PROXY_BASE = '/api/proxy';
 
 export class DeckFetchError extends Error {}
 
-export async function fetchDeck(deckId: string): Promise<RawDeck> {
+// `deckKey` comes from normalize.parseDeckUrl: a SWUDB deck id, or
+// 'swuforge:{id}' for a SWU Forge deck.
+export async function fetchDeck(deckKey: string): Promise<RawDeck> {
+  if (deckKey.startsWith(SWUFORGE_PREFIX)) {
+    return fetchSwuForgeDeck(deckKey.slice(SWUFORGE_PREFIX.length));
+  }
+  return fetchSwudbDeck(deckKey);
+}
+
+// SWU Forge's export only has set + number ids; card details are filled in
+// from the local card database.
+async function fetchSwuForgeDeck(deckId: string): Promise<RawDeck> {
+  const id = encodeURIComponent(deckId);
+  // The export has the cards; the page data only tells us the format
+  // (needed to recognize Limited decks), so a failure there is not fatal.
+  const [res, declaredFormat] = await Promise.all([
+    fetch(`${PROXY_BASE}/swuforge/deck/${id}`),
+    fetch(`${PROXY_BASE}/swuforge/deckdata/${id}`)
+      .then(async (r) => (r.ok ? parseDeclaredFormat(await r.json()) : null))
+      .catch(() => null),
+  ]);
+  if (res.status === 404) {
+    throw new DeckFetchError(
+      `SWU Forge deck "${deckId}" not found. Make sure link sharing is on for the deck (private decks can't be read).`,
+    );
+  }
+  if (!res.ok) {
+    throw new DeckFetchError(`Failed to load SWU Forge deck "${deckId}" (HTTP ${res.status}).`);
+  }
+  return forgeExportToRawDeck((await res.json()) as ForgeExport, deckId, declaredFormat);
+}
+
+async function fetchSwudbDeck(deckId: string): Promise<RawDeck> {
   const res = await fetch(`${PROXY_BASE}/swudb/deck/${encodeURIComponent(deckId)}`);
   if (res.status === 404) {
     throw new DeckFetchError(

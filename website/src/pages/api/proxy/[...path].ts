@@ -1,11 +1,11 @@
 import type { APIRoute } from 'astro';
 
-// Same-origin reverse proxy for the two SWUDB upstreams (they send no CORS
+// Same-origin reverse proxy for the SWUDB and SWU Forge upstreams (they send no CORS
 // headers, so the browser can't call them directly). Runs as a Cloudflare Pages
 // Function in production and in-process under `astro dev`.
 export const prerender = false;
 
-// Strict whitelist. Only these two shapes are forwarded.
+// Strict whitelist. Only these four shapes are forwarded.
 function resolveUpstream(path: string): string | null {
   // /swudb/deck/{id}  ->  https://www.swudb.com/api/deck/{id}
   const deck = path.match(/^swudb\/deck\/([A-Za-z0-9_-]+)$/);
@@ -13,6 +13,15 @@ function resolveUpstream(path: string): string | null {
 
   // /swudb/sets       ->  https://api.swu-db.com/sets
   if (path === 'swudb/sets') return 'https://api.swu-db.com/sets';
+
+  // /swuforge/deck/{id}  ->  https://swuforge.com/api/decks/{id}/export
+  const forge = path.match(/^swuforge\/deck\/([A-Za-z0-9_-]+)$/);
+  if (forge) return `https://swuforge.com/api/decks/${forge[1]}/export`;
+
+  // /swuforge/deckdata/{id}  ->  https://swuforge.com/decks/{id}/__data.json
+  // (the deck page's own data; read only for the deck's format)
+  const forgeData = path.match(/^swuforge\/deckdata\/([A-Za-z0-9_-]+)$/);
+  if (forgeData) return `https://swuforge.com/decks/${forgeData[1]}/__data.json`;
 
   return null;
 }
